@@ -14,13 +14,38 @@ const server = Bun.serve({
       const stream = new ReadableStream({
         start(controller) {
           clients.add(controller);
+          console.log(`✅ Client connected (${clients.size} total client(s))`);
+          const encoder = new TextEncoder();
+          
           // Send initial connection message
-          controller.enqueue(new TextEncoder().encode('data: connected\n\n'));
+          try {
+            controller.enqueue(encoder.encode('data: connected\n\n'));
+          } catch (err) {
+            console.error('Error sending initial SSE message:', err);
+            clients.delete(controller);
+            return;
+          }
+          
+          // Send periodic keepalive ping (every 30 seconds)
+          const keepAliveInterval = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(': ping\n\n'));
+            } catch (err) {
+              clearInterval(keepAliveInterval);
+              clients.delete(controller);
+            }
+          }, 30000);
           
           // Clean up on disconnect
           req.signal.addEventListener('abort', () => {
+            clearInterval(keepAliveInterval);
             clients.delete(controller);
-            controller.close();
+            console.log(`❌ Client disconnected (${clients.size} remaining client(s))`);
+            try {
+              controller.close();
+            } catch (err) {
+              // Ignore errors on close
+            }
           });
         },
       });
@@ -28,8 +53,9 @@ const server = Bun.serve({
       return new Response(stream, {
         headers: {
           'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-transform',
           'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
         },
       });
     }
@@ -42,17 +68,60 @@ const server = Bun.serve({
       const reloadScript = `
 <script>
   (function() {
-    const eventSource = new EventSource('/reload');
-    eventSource.onmessage = function(event) {
-      if (event.data === 'reload') {
-        console.log('🔄 Reloading page...');
-        window.location.reload();
+    let eventSource = null;
+    let reconnectTimeout = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    
+    function connect() {
+      try {
+        if (eventSource) {
+          eventSource.close();
+        }
+        eventSource = new EventSource('/reload');
+        
+        eventSource.onopen = function() {
+          console.log('✅ Auto-reload connected');
+          reconnectAttempts = 0;
+        };
+        
+        eventSource.onmessage = function(event) {
+          if (event.data === 'reload' || event.data === 'connected') {
+            if (event.data === 'reload') {
+              console.log('🔄 Reloading page...');
+              window.location.reload();
+            }
+          }
+        };
+        
+        eventSource.onerror = function(err) {
+          console.log('⚠️ Auto-reload connection error, reconnecting...');
+          eventSource.close();
+          eventSource = null;
+          
+          if (reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            reconnectTimeout = setTimeout(connect, 1000 * reconnectAttempts);
+          } else {
+            console.log('❌ Auto-reload: Max reconnection attempts reached');
+          }
+        };
+      } catch (err) {
+        console.error('Auto-reload connection error:', err);
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          reconnectTimeout = setTimeout(connect, 1000 * reconnectAttempts);
+        }
       }
-    };
-    eventSource.onerror = function() {
-      console.log('Reload connection closed');
-      eventSource.close();
-    };
+    }
+    
+    connect();
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (eventSource) eventSource.close();
+    });
   })();
 </script>`;
       
@@ -97,17 +166,23 @@ const watcher = watch('.', { recursive: false }, (eventType, filename) => {
       console.log('🔄 Notifying clients to reload...');
       
       // Notify all connected clients
-      const message = 'data: reload\n\n';
       const encoder = new TextEncoder();
-      const data = encoder.encode(message);
+      const message = encoder.encode('data: reload\n\n');
+      
+      const clientsToRemove: ReadableStreamDefaultController[] = [];
       
       for (const client of clients) {
         try {
-          client.enqueue(data);
+          client.enqueue(message);
         } catch (err) {
-          // Client disconnected, remove it
-          clients.delete(client);
+          // Client disconnected, mark for removal
+          clientsToRemove.push(client);
         }
+      }
+      
+      // Remove disconnected clients
+      for (const client of clientsToRemove) {
+        clients.delete(client);
       }
       
       console.log(`✅ Notified ${clients.size} client(s)\n`);

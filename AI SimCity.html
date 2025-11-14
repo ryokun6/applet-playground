@@ -144,8 +144,8 @@
     <div class="space-y-3">
       <div class="flex items-start gap-3">
         <div class="space-y-2 flex-1">
-          <div class="text-xs text-neutral-500 tracking-wider px-1">view</div>
-          <div class="flex items-center gap-1">
+          <div class="text-xs text-neutral-500 tracking-wider px-1">zoom</div>
+          <div class="flex items-center gap-1 w-full justify-between">
             <button id="zoomOutBtn" class="w-8 h-8 aspect-square border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors flex items-center justify-center">−</button>
             <div id="zoomLevel" class="text-xs text-neutral-300 tabular-nums px-2">100%</div>
             <button id="zoomInBtn" class="w-8 h-8 aspect-square border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors flex items-center justify-center">+</button>
@@ -160,10 +160,10 @@
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button id="aiSuggestBtn" class="flex-1 text-left px-3 py-2 border border-yellow-600 text-yellow-500 rounded text-sm hover:bg-yellow-900/20 transition-colors flex items-center gap-2">
-          <span>ask AI mayor for advice</span>
+        <button id="aiSuggestBtn" class="flex-1 text-center px-3 py-2 border border-yellow-600 text-yellow-500 rounded text-sm hover:bg-yellow-900/20 transition-colors flex items-center justify-center gap-2">
+          <span>ask AI mayor</span>
         </button>
-        <button id="newCityBtn" class="flex-1 text-left px-3 py-2 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors">
+        <button id="newCityBtn" class="flex-1 text-center px-3 py-2 border border-yellow-600 text-yellow-500 rounded text-sm hover:bg-yellow-900/20 transition-colors">
           new city
         </button>
       </div>
@@ -423,8 +423,11 @@ function drTl(x,y,tp,lv,ab,w,h) {
   else if (tp==='residential') {
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
     if (lv===0) { 
-      ctx.fillStyle='rgba(74,124,89,0.5)'; 
-      ctx.fillRect(px+3,py+3,wd-6,ht-6); 
+      ctx.fillStyle='rgba(74,124,89,0.5)';
+      const squareSize = Math.min(wd, ht) - 4;
+      const squareX = px + (wd - squareSize) / 2;
+      const squareY = py + (ht - squareSize) / 2;
+      ctx.fillRect(squareX, squareY, squareSize, squareSize); 
     }
     else if (ab) { 
       ctx.fillStyle='#4a4a4a'; 
@@ -438,17 +441,23 @@ function drTl(x,y,tp,lv,ab,w,h) {
       if (w===2) ctx.fillRect(px+20,py+Math.floor(5+bh*0.35),2,2); 
     }
     else {
-      const sz=w===2?wd-4:(lv===1?8:10), of=w===2?2:(lv===1?4:3), bh=w===2?ht-7:(lv===1?8:10);
-      ctx.fillStyle=w===2?'#16a34a':(lv===3?'#22c55e':(lv===2?'#16a34a':'#15803d')); 
-      ctx.fillRect(px+of,py+6,sz,bh);
-      ctx.fillStyle=w===2?'#15803d':(lv===3?'#16a34a':'#15803d'); 
-      ctx.fillRect(px+of,py+6,sz,Math.floor(bh*0.25));
+      // For 2x2 buildings, make them grow taller with level
+      const sz=w===2&&h===2?(lv===3?wd-3:(lv===2?wd-3.5:wd-4)):w===2?wd-4:(lv===1?8:(lv===3?10:10));
+      const of=w===2&&h===2?(lv===3?1.5:(lv===2?1.75:2)):w===2?2:(lv===1?4:(lv===3?3:3));
+      const bh=w===2&&h===2?(lv===3?ht-4:(lv===2?ht-5:ht-7)):w===2?ht-7:(lv===1?8:(lv===3?12:(lv===2?14:11)));
+      const yo=w===2&&h===2?(lv===3?3:(lv===2?4:6)):w===1&&h===1?(lv===3?2:(lv===2?1:6)):6;
+      ctx.fillStyle=w===2&&h===2?(lv===3?'#22c55e':(lv===2?'#16a34a':'#15803d')):w===2?'#16a34a':(lv===3?'#1a9e4a':(lv===2?'#16a34a':'#15803d')); 
+      ctx.fillRect(px+of,py+yo,sz,bh);
+      ctx.fillStyle=w===2&&h===2?(lv===3?'#16a34a':(lv===2?'#15803d':'#166534')):w===2?'#15803d':(lv===3?'#15803d':'#15803d'); 
+      const roofHeight=w===2&&h===2&&lv===1?0.18:0.25;
+      ctx.fillRect(px+of,py+yo,sz,Math.floor(bh*roofHeight));
       if (lv>=2 || w===2) {
         ctx.fillStyle='#4ade80';
         const wh=2, ww=2, gap=1;
-        const floors = w===2&&h===1?1:(lv===3?2:(lv===2?2:1));
+        const floors=w===2&&h===2?(lv===3?4:(lv===2?3:2)):w===2&&h===1?1:(lv===3?2:(lv===2?2:1));
+        const winStart=w===2&&h===2?0.35:0.4;
         for (let f=0; f<floors; f++) {
-          const wy = py+Math.floor(6+bh*0.4)+(f*(wh+gap+1));
+          const wy = py+Math.floor(yo+bh*winStart)+(f*(wh+gap+1));
           ctx.fillRect(px+5,wy,ww,wh); 
           ctx.fillRect(px+9,wy,ww,wh);
           if (w===2) { 
@@ -458,7 +467,8 @@ function drTl(x,y,tp,lv,ab,w,h) {
         }
       } else if (lv===1) {
         ctx.fillStyle='#4ade80';
-        const wy = py+Math.floor(6+bh*0.4);
+        const winStart=w===2&&h===2?0.35:0.4;
+        const wy = py+Math.floor(yo+bh*winStart);
         ctx.fillRect(px+5,wy,2,2); 
         ctx.fillRect(px+9,wy,2,2);
       }
@@ -469,8 +479,11 @@ function drTl(x,y,tp,lv,ab,w,h) {
   } else if (tp==='commercial') {
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
     if (lv===0) { 
-      ctx.fillStyle='rgba(74,107,138,0.5)'; 
-      ctx.fillRect(px+2,py+2,wd-4,ht-4); 
+      ctx.fillStyle='rgba(74,107,138,0.5)';
+      const squareSize = Math.min(wd, ht) - 4;
+      const squareX = px + (wd - squareSize) / 2;
+      const squareY = py + (ht - squareSize) / 2;
+      ctx.fillRect(squareX, squareY, squareSize, squareSize); 
     }
     else if (ab) { 
       ctx.fillStyle='#4a4a4a'; 
@@ -484,16 +497,19 @@ function drTl(x,y,tp,lv,ab,w,h) {
       if (w===2) ctx.fillRect(px+20,py+Math.floor(4+bh*0.4),3,3); 
     }
     else {
-      const bh=w===2||h===2?ht-3:(lv===1?9:(lv===2?11:13)), yo=w===2||h===2?2:(lv===1?4:(lv===2?2:1));
-      ctx.fillStyle=w===2||h===2?'#2563eb':(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')); 
+      // For 2x2 buildings, grow taller with level
+      const bh=w===2&&h===2?(lv===3?ht-1:(lv===2?ht-2:ht-3)):w===2||h===2?ht-3:(lv===1?9:(lv===2?11:13));
+      const yo=w===2&&h===2?(lv===3?1:(lv===2?1.5:2)):w===2||h===2?2:(lv===1?4:(lv===2?2:1));
+      ctx.fillStyle=w===2&&h===2?(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')):w===2||h===2?'#2563eb':(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')); 
       ctx.fillRect(px+2,py+yo+1,wd-4,bh);
-      ctx.fillStyle=w===2||h===2?'#1e40af':(lv===3?'#2563eb':'#1e40af'); 
+      ctx.fillStyle=w===2&&h===2?(lv===3?'#2563eb':(lv===2?'#1e40af':'#1e40af')):w===2||h===2?'#1e40af':(lv===3?'#2563eb':'#1e40af'); 
       ctx.fillRect(px+2,py+yo+1,wd-4,Math.floor(bh*0.25));
       ctx.fillStyle='#87ceeb';
       const wh=3, ww=3;
-      const floors = w===2&&h===1?1:(w===2||h===2?2:1);
+      const floors=w===2&&h===2?(lv===3?5:(lv===2?4:3)):w===2&&h===1?1:(w===2||h===2?2:1);
+      const winStart=w===2&&h===2?0.35:0.4;
       for (let f=0; f<floors; f++) {
-        const wy = py+Math.floor((yo+1)+bh*0.4)+(f*5);
+        const wy = py+Math.floor((yo+1)+bh*winStart)+(f*5);
         ctx.fillRect(px+4,wy,ww,wh); 
         ctx.fillRect(px+9,wy,ww,wh);
         if (w===2) { 
@@ -508,8 +524,11 @@ function drTl(x,y,tp,lv,ab,w,h) {
   } else if (tp==='industrial') {
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
     if (lv===0) { 
-      ctx.fillStyle='rgba(138,124,74,0.5)'; 
-      ctx.fillRect(px+2,py+3,wd-4,ht-6); 
+      ctx.fillStyle='rgba(138,124,74,0.5)';
+      const squareSize = Math.min(wd, ht) - 4;
+      const squareX = px + (wd - squareSize) / 2;
+      const squareY = py + (ht - squareSize) / 2;
+      ctx.fillRect(squareX, squareY, squareSize, squareSize); 
     }
     else if (ab) { 
       ctx.fillStyle='#4a4a4a'; 
@@ -523,16 +542,18 @@ function drTl(x,y,tp,lv,ab,w,h) {
       if (w===2) ctx.fillRect(px+21,py+11,2,2); 
     }
     else {
-      const bh=w===2?ht-4:(lv===1?8:(lv===2?10:11)), yo=w===2?3:(lv===1?5:(lv===2?4:3));
+      // For 2x2 buildings, grow taller with level
+      const bh=w===2&&h===2?(lv===3?ht-2:(lv===2?ht-3:ht-4)):w===2?ht-4:(lv===1?8:(lv===2?10:11));
+      const yo=w===2&&h===2?(lv===3?2:(lv===2?2.5:3)):w===2?3:(lv===1?5:(lv===2?4:3));
       // Main building body
-      ctx.fillStyle=w===2?'#ca8a04':(lv===3?'#eab308':(lv===2?'#ca8a04':'#a16207')); 
+      ctx.fillStyle=w===2&&h===2?(lv===3?'#eab308':(lv===2?'#ca8a04':'#a16207')):w===2?'#ca8a04':(lv===3?'#eab308':(lv===2?'#ca8a04':'#a16207')); 
       ctx.fillRect(px+2,py+yo+1,wd-4,bh);
       // Slanted roof (darker top section)
-      ctx.fillStyle=w===2?'#a16207':(lv===3?'#ca8a04':'#854d0e'); 
+      ctx.fillStyle=w===2&&h===2?(lv===3?'#ca8a04':(lv===2?'#a16207':'#854d0e')):w===2?'#a16207':(lv===3?'#ca8a04':'#854d0e'); 
       ctx.fillRect(px+2,py+yo+1,wd-4,Math.floor(bh*0.25));
       // Chimney structure
       ctx.fillStyle='#6b4423'; 
-      const ch=lv===3?6:5; 
+      const ch=w===2&&h===2?(lv===3?8:(lv===2?7:6)):lv===3?6:5; 
       ctx.fillRect(px+4,py+yo-ch+1,2,ch); 
       if (w===2) ctx.fillRect(px+26,py+yo-ch+1,2,ch);
       // Chimney top cap
@@ -550,17 +571,15 @@ function drTl(x,y,tp,lv,ab,w,h) {
       // Windows
       ctx.fillStyle='#fde047'; 
       if (w===2 && h===2) {
-        // Two rows of windows for 2x2 buildings
-        const wy1 = py+yo+Math.floor(bh*0.4);
-        const wy2 = py+yo+Math.floor(bh*0.58);
-        ctx.fillRect(px+5,wy1,2,2); 
-        ctx.fillRect(px+9,wy1,2,2); 
-        ctx.fillRect(px+21,wy1,2,2); 
-        ctx.fillRect(px+25,wy1,2,2);
-        ctx.fillRect(px+5,wy2,2,2); 
-        ctx.fillRect(px+9,wy2,2,2); 
-        ctx.fillRect(px+21,wy2,2,2); 
-        ctx.fillRect(px+25,wy2,2,2);
+        // More windows for higher level 2x2 buildings
+        const rows=lv===3?3:(lv===2?2:2);
+        for (let r=0; r<rows; r++) {
+          const wy = py+yo+Math.floor(bh*0.35)+(r*5);
+          ctx.fillRect(px+5,wy,2,2); 
+          ctx.fillRect(px+9,wy,2,2); 
+          ctx.fillRect(px+21,wy,2,2); 
+          ctx.fillRect(px+25,wy,2,2);
+        }
       } else {
         // Single row of windows for smaller buildings
         ctx.fillRect(px+5,py+yo+Math.floor(bh*0.55),2,2); 
@@ -1169,32 +1188,55 @@ function getBuildingBoundsFromCell(x,y) {
   // isolated cells so bulldozing/park placement only affects the clicked tile.
   if (baseW===1 && baseH===1) return {startX:x,startY:y,w:1,h:1};
 
-  // Expand left/right and up/down while the cell looks like the same building.
-  let startX=x, endX=x, startY=y, endY=y;
-
-  // Horizontal extent
-  for (let cx=x-1; cx>=0; cx--) {
-    const cc=st.grid[y][cx];
-    if (cc.type===c.type && (cc.w||1)===baseW && (cc.h||1)===baseH) startX=cx; else break;
+  // For multi-tile buildings (w>1 or h>1), all cells in the building have the same w,h values.
+  // We need to find the top-left corner of this building.
+  // The building occupies cells from (startX, startY) to (startX+w-1, startY+h-1).
+  // Strategy: search left and up from the clicked cell to find the top-left corner.
+  
+  let startX = x;
+  let startY = y;
+  
+  // Search left to find the leftmost cell of this building, but never sweep more than width-1 tiles
+  let stepsLeft = 0;
+  while (startX > 0 && stepsLeft < baseW-1) {
+    const left = st.grid[y][startX-1];
+    if (left && left.type === c.type && (left.w||1) === baseW && (left.h||1) === baseH) {
+      startX--;
+      stepsLeft++;
+    } else {
+      break;
+    }
   }
-  for (let cx=x+1; cx<GR_SZ; cx++) {
-    const cc=st.grid[y][cx];
-    if (cc.type===c.type && (cc.w||1)===baseW && (cc.h||1)===baseH) endX=cx; else break;
+  
+  // Search up to find the topmost cell of this building, but never sweep more than height-1 tiles
+  let stepsUp = 0;
+  while (startY > 0 && stepsUp < baseH-1) {
+    const above = st.grid[startY-1][x];
+    if (above && above.type === c.type && (above.w||1) === baseW && (above.h||1) === baseH) {
+      startY--;
+      stepsUp++;
+    } else {
+      break;
+    }
   }
-
-  // Vertical extent
-  for (let cy=y-1; cy>=0; cy--) {
-    const cc=st.grid[cy][x];
-    if (cc.type===c.type && (cc.w||1)===baseW && (cc.h||1)===baseH) startY=cy; else break;
+  
+  // Verify the rectangle is consistent; otherwise fallback to single tile to avoid deleting neighbors
+  let consistent = true;
+  for (let dy=0; dy<baseH && consistent; dy++) {
+    for (let dx=0; dx<baseW; dx++) {
+      const nx=startX+dx, ny=startY+dy;
+      if (nx<0 || nx>=GR_SZ || ny<0 || ny>=GR_SZ) { consistent=false; break; }
+      const cell=st.grid[ny][nx];
+      if (!cell || cell.type!==c.type || (cell.w||1)!==baseW || (cell.h||1)!==baseH) {
+        consistent=false;
+        break;
+      }
+    }
   }
-  for (let cy=y+1; cy<GR_SZ; cy++) {
-    const cc=st.grid[cy][x];
-    if (cc.type===c.type && (cc.w||1)===baseW && (cc.h||1)===baseH) endY=cy; else break;
-  }
-
-  const w=endX-startX+1;
-  const h=endY-startY+1;
-  return {startX,startY,w,h};
+  if (!consistent) return {startX:x,startY:y,w:1,h:1};
+  
+  // The building's dimensions are stored in each cell's w and h
+  return {startX:startX, startY:startY, w:baseW, h:baseH};
 }
 
 function isTopLeftCell(x,y) {
@@ -1235,8 +1277,14 @@ function plcTl(x,y) {
       const isEmptyZone=isZone && (c.level===0 || c.abandoned);
       const isSmallMulti=(w===2 && h===1) || (w===1 && h===2) || (w===2 && h===2);
 
-      if (isEmptyZone || isSmallMulti) {
-        // Bulldoze the entire small merged building or empty zone
+      // For empty zones: always bulldoze only the clicked cell
+      // For small multi-tile buildings (not empty zones): bulldoze the entire building
+      if (isEmptyZone) {
+        // Empty zones: bulldoze only the clicked cell
+        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1};
+        normalizeEmptyCell(x,y);
+      } else if (isSmallMulti) {
+        // Small multi-tile buildings: bulldoze the entire building
         for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
           const nx=startX+dx, ny=startY+dy; if (nx<GR_SZ && ny<GR_SZ) {
             st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1};
@@ -1839,6 +1887,26 @@ function hasRdAcc(x,y) {
   return false;
 }
 
+function hasSchoolCoverage(x,y) {
+  // Check if building at (x,y) is within a school's bounds (8-tile radius)
+  const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
+  // Check each cell of the building
+  for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+    const cx=x+dx, cy=y+dy;
+    // Check for schools within 8-tile radius
+    for (let sdy=-8; sdy<=8; sdy++) for (let sdx=-8; sdx<=8; sdx++) {
+      const nx=cx+sdx, ny=cy+sdy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+        const d=Math.abs(sdx)+Math.abs(sdy);
+        if (d<=8 && st.grid[ny][nx].type==='school') {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 function calcLV(x,y) {
   let v=50; const tr=st.terrain[y][x];
   if (tr==='water') for (let dy=-2; dy<=2; dy++) for (let dx=-2; dx<=2; dx++) {
@@ -2193,6 +2261,10 @@ function startQuake() {
       const c=st.grid[y][x]; 
       if (c.type==='empty' || c.type==='road') continue;
       
+      // Skip level 0 RCI zones (empty zones), but allow abandoned buildings
+      const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
+      if (isZone && (c.level||0)===0 && !c.abandoned) continue;
+      
       const w=c.w||1, h=c.h||1;
       // Only add the top-left cell of each building to avoid duplicates
       // Check if this is the top-left cell
@@ -2450,7 +2522,8 @@ function simTk() {
             if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=newLevel;
           }
         }
-        else if (lv>=30 && lv<40 && c.level===3) { 
+        // Level 3 downgrades: need land value >= 40 AND school coverage (same criteria as upgrade)
+        else if (c.level===3 && (lv<40 || !hasSchoolCoverage(x,y))) { 
           c.level=2; 
           downgraded = true;
           // Update all cells of merged building
@@ -2473,8 +2546,8 @@ function simTk() {
               c.level=2;
               upgraded = true;
             }
-            // Level 2 -> 3: needs age > 50 AND land value > 75 (was 25 and 70)
-            else if (c.level===2 && c.age>50 && lv>75) {
+            // Level 2 -> 3: needs age > 50 AND land value >= 40 AND school coverage
+            else if (c.level===2 && c.age>50 && lv>=40 && hasSchoolCoverage(x,y)) {
               c.level=3;
               upgraded = true;
             }
