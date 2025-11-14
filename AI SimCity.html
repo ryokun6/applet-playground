@@ -1,0 +1,2676 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+    <link rel="stylesheet" href="https://os.ryo.lu/fonts/fonts.css">
+    <!-- ts=1763051833299 --> 
+    
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+ 
+  <style>
+    * {
+      box-sizing: border-box;
+      
+    }
+    html, body {
+      margin: 0;
+      overflow-x: auto; /* Allow horizontal scroll if content overflows */
+      width: 100%;
+      height: 100%;
+      max-width: 100%; /* Prevent body from exceeding viewport width */
+      
+    }
+    
+    /* Ensure pre doesn't break layout */
+    pre {
+      white-space: pre-wrap; /* Allow wrapping */
+      word-break: break-all; /* Break long words */
+    }
+  </style>
+  
+  <!-- Move click interceptor script to head for earlier execution -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener('click', function(event) {
+        var targetElement = event.target.closest('a');
+        // Only intercept if it's a valid link and NOT inside the draggable toolbar
+        if (targetElement && targetElement.href && !targetElement.closest('[data-drag-controls]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          try {
+            // Resolve relative URLs against the document's base URI (if set) or window location
+            const absoluteUrl = new URL(targetElement.getAttribute('href'), document.baseURI || window.location.href).href;
+            // Use a specific message type for AI HTML navigation
+            window.parent.postMessage({ type: 'aiHtmlNavigation', url: absoluteUrl }, '*');
+            console.log('Intercepted link click:', absoluteUrl);
+          } catch (e) { console.error("Error resolving/posting URL:", e); }
+        }
+      }, true); // Use capture phase to intercept early
+    });
+    
+    // Also add immediate execution version for documents that load quickly
+    // This helps ensure we don't miss any clicks during initial page load
+    (function() {
+      document.addEventListener('click', function(event) {
+        var targetElement = event.target.closest('a');
+        // Only intercept if it's a valid link and NOT inside the draggable toolbar
+        if (targetElement && targetElement.href && !targetElement.closest('[data-drag-controls]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          try {
+            // Resolve relative URLs against the document's base URI (if set) or window location
+            const absoluteUrl = new URL(targetElement.getAttribute('href'), document.baseURI || window.location.href).href;
+            // Use a specific message type for AI HTML navigation
+            window.parent.postMessage({ type: 'aiHtmlNavigation', url: absoluteUrl }, '*');
+            console.log('Intercepted link click (immediate handler):', absoluteUrl);
+          } catch (e) { console.error("Error resolving/posting URL:", e); }
+        }
+      }, true); // Use capture phase to intercept early
+    })();
+  </script>
+ 
+</head>
+<body>
+  <div class="w-full h-screen bg-neutral-900 text-neutral-100 font-geneva flex flex-col overflow-hidden">
+  <div class="border-b border-neutral-700 bg-neutral-800 px-3 py-2 flex items-center justify-between flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <button id="menuBtn" class="text-sm text-neutral-300 hover:text-neutral-100 transition-colors">☰</button>
+      <div class="flex items-center gap-1">
+        <div class="text-sm text-neutral-400">
+          <input id="cityName" type="text" value="new city" class="bg-transparent border-none outline-none text-white cursor-pointer hover:bg-neutral-700 px-1 rounded transition-colors">
+        </div>
+        <button id="speedToggle" class="text-xs text-neutral-300 hover:text-neutral-100 transition-colors">⏸</button>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="rciBtn">
+        <div class="w-1 h-4 bg-neutral-700 rounded-full overflow-hidden">
+          <div id="rDemand" class="w-full bg-green-500 transition-all duration-300" style="height: 50%; margin-top: auto;"></div>
+        </div>
+        <div class="w-1 h-4 bg-neutral-700 rounded-full overflow-hidden">
+          <div id="cDemand" class="w-full bg-blue-500 transition-all duration-300" style="height: 50%; margin-top: auto;"></div>
+        </div>
+        <div class="w-1 h-4 bg-neutral-700 rounded-full overflow-hidden">
+          <div id="iDemand" class="w-full bg-yellow-500 transition-all duration-300" style="height: 50%; margin-top: auto;"></div>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-3 text-xs">
+        <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="popBtn">
+          <span class="text-neutral-500">☻</span>
+          <span id="population" class="text-white tabular-nums">0</span>
+        </div>
+        <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="moneyBtn">
+          <span class="text-neutral-500">$</span>
+          <span id="money" class="text-white tabular-nums">50k</span>
+        </div>
+        <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="happyBtn">
+          <span class="text-neutral-500">♥</span>
+          <span id="happiness" class="text-white tabular-nums">70</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="border-b border-neutral-700 bg-neutral-800 px-3 py-1.5 flex items-center gap-3 text-xs flex-shrink-0">
+    <div id="yearDisplay" class="text-neutral-400 font-mono tabular-nums">1990</div>
+    <div class="flex-1 overflow-hidden relative" style="height: 1.25rem; line-height: 1.25rem;">
+      <div id="newsTicker" class="text-neutral-300 whitespace-nowrap absolute left-0 transition-all duration-500" style="line-height: 1.25rem;"></div>
+    </div>
+  </div>
+
+  <div id="menu" class="hidden border-b border-neutral-700 bg-neutral-800 p-3 flex-shrink-0">
+    <div class="space-y-2">
+      <button id="aiSuggestBtn" class="w-full text-left px-3 py-2 border border-yellow-600 text-yellow-500 rounded text-sm hover:bg-yellow-900/20 transition-colors flex items-center gap-2">
+        <span>ask AI mayor for advice</span>
+      </button>
+      <button id="newCityBtn" class="w-full text-left px-3 py-2 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors">
+        new city
+      </button>
+      <div class="flex items-center gap-1">
+        <button id="zoomOutBtn" class="w-8 h-8 aspect-square border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors flex items-center justify-center">−</button>
+        <div id="zoomLevel" class="text-xs text-neutral-300 tabular-nums px-2">100%</div>
+        <button id="zoomInBtn" class="w-8 h-8 aspect-square border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors flex items-center justify-center">+</button>
+        <button id="zoomResetBtn" class="px-2 h-8 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors text-xs">reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="newGamePanel" class="hidden border-b border-neutral-700 bg-neutral-800 p-4 flex-shrink-0">
+    <div class="max-w-md mx-auto space-y-3">
+      <div>
+        <label class="text-xs text-neutral-400 block mb-1">city name</label>
+        <input id="newCityName" type="text" value="new city" class="w-full bg-neutral-700 border border-neutral-600 text-neutral-200 px-3 py-2 rounded text-sm outline-none focus:border-neutral-500">
+      </div>
+      <div>
+        <label class="text-xs text-neutral-400 block mb-1">terrain type</label>
+        <select id="terrainType" class="w-full bg-neutral-700 border border-neutral-600 text-neutral-200 px-3 py-2 rounded text-sm outline-none">
+          <option value="balanced">balanced</option>
+          <option value="island">island</option>
+          <option value="valley">valley</option>
+          <option value="plains">plains</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-neutral-400 block mb-1">difficulty</label>
+        <select id="difficulty" class="w-full bg-neutral-700 border border-neutral-600 text-neutral-200 px-3 py-2 rounded text-sm outline-none">
+          <option value="easy">easy ($100k)</option>
+          <option value="normal" selected>normal ($50k)</option>
+          <option value="hard">hard ($20k)</option>
+        </select>
+      </div>
+      <button id="startGameBtn" class="w-full bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded text-sm transition-colors">
+        start game
+      </button>
+    </div>
+  </div>
+
+  <div class="flex-1 overflow-hidden flex">
+    <div id="grid" class="flex-1 overflow-auto p-4 relative">
+      <canvas id="canvas" class="rounded" style="image-rendering: pixelated;"></canvas>
+    </div>
+
+    <div class="flex flex-shrink-0 relative">
+      <div id="subToolbar" class="hidden absolute right-[calc(100%+1px)] w-14 border-r border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto rounded-lg z-10"></div>
+      <div class="w-14 border-l border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto flex-shrink-0" id="mainToolbar">
+        <button data-tool="road" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🛣️</button>
+        <button data-tool="residential" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏠</button>
+        <button data-tool="commercial" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏢</button>
+        <button data-tool="industrial" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏭</button>
+        <button data-submenu="park" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🌳</button>
+        <button data-tool="police" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">👮</button>
+        <button data-tool="fire" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🚒</button>
+        <button data-tool="school" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏫</button>
+        <button data-tool="hospital" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏥</button>
+        <div class="w-full flex flex-col">
+          <div class="h-1"></div>
+          <div class="h-px w-full bg-neutral-700"></div>
+          <div class="h-1"></div>
+        </div>
+        <button data-tool="bulldoze" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">💥</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="aiPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 max-h-48 overflow-y-auto flex-shrink-0">
+    <div class="flex items-start gap-2 mb-2">
+      <div class="flex-1">
+        <div class="text-xs text-yellow-500 mb-1">AI Mayor</div>
+        <div id="aiMessage" class="text-sm text-neutral-300 leading-relaxed"></div>
+      </div>
+      <button id="closeAiBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
+    </div>
+  </div>
+
+  <div id="infoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 max-h-48 overflow-y-auto flex-shrink-0">
+    <div class="flex items-start gap-2 mb-2">
+      <div class="flex-1">
+        <div class="text-xs text-blue-400 mb-1" id="infoTitle">Info</div>
+        <div id="infoContent" class="text-sm text-neutral-300 leading-relaxed space-y-1"></div>
+      </div>
+      <button id="closeInfoBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
+    </div>
+  </div>
+
+  <div class="border-t border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-neutral-400 flex items-center justify-between flex-shrink-0">
+    <div id="statusText">select a tool to start building</div>
+    <div id="costText" class="text-neutral-500"></div>
+  </div>
+</div>
+
+<style>
+@keyframes tickerRollUp {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-100%); opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  10%, 30%, 50%, 70%, 90% { transform: translate(-2px, 1px); }
+  20%, 40%, 60%, 80% { transform: translate(2px, -1px); }
+}
+.ticker-roll { animation: tickerRollUp 0.5s ease-out forwards; }
+.earthquake { animation: shake 0.5s ease-in-out; }
+@media (hover: hover) and (pointer: fine) {
+  .tool-btn:hover { background-color: rgb(64, 64, 64); }
+  .tool-btn[data-tool="bulldoze"]:hover { background-color: rgb(127, 29, 29); }
+  .tool-btn.submenu-active:hover { background-color: rgb(127, 29, 29); }
+}
+</style>
+
+<script>
+const GR_SZ = 32, CL_SZ = 16;
+let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
+const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000};
+const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
+const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
+
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1};
+let showLandValueOverlay = false;
+let showCrimeOverlay = false;
+
+const cvs = document.getElementById('canvas'), ctx = cvs.getContext('2d');
+cvs.width = GR_SZ * CL_SZ; cvs.height = GR_SZ * CL_SZ;
+
+function genTerr(t) {
+  const tr = [];
+  for (let y=0; y<GR_SZ; y++) { const r=[]; for (let x=0; x<GR_SZ; x++) r.push('grass'); tr.push(r); }
+  if (t==='island') {
+    for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+      const dx=x-GR_SZ/2, dy=y-GR_SZ/2, d=Math.sqrt(dx*dx+dy*dy), n=(Math.sin(x*0.3)+Math.cos(y*0.3))*2;
+      if (d+n>GR_SZ/2.3) tr[y][x]='water';
+    }
+    for (let i=0; i<3; i++) {
+      const cx=Math.floor(GR_SZ/4+Math.random()*GR_SZ/2), cy=Math.floor(GR_SZ/4+Math.random()*GR_SZ/2);
+      for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+        const dx=x-cx, dy=y-cy, d=Math.sqrt(dx*dx+dy*dy);
+        if (d<3 && tr[y][x]==='grass') tr[y][x]='cliff';
+      }
+    }
+  } else if (t==='valley') {
+    for (let y=0; y<GR_SZ; y++) {
+      const cd=Math.abs(y-GR_SZ/2), th=GR_SZ/4+Math.sin(y*0.2)*2;
+      if (cd>th) for (let x=0; x<GR_SZ; x++) tr[y][x]='cliff';
+    }
+    const ry=Math.floor(GR_SZ/2);
+    for (let x=0; x<GR_SZ; x++) {
+      const of=Math.floor(Math.sin(x*0.3)*3), r=ry+of;
+      if (r>=0 && r<GR_SZ) { tr[r][x]='water'; if (r-1>=0 && Math.random()<0.5) tr[r-1][x]='water'; if (r+1<GR_SZ && Math.random()<0.5) tr[r+1][x]='water'; }
+    }
+  } else if (t==='plains') {
+    for (let i=0; i<2; i++) {
+      const lx=Math.floor(GR_SZ/4+Math.random()*GR_SZ/2), ly=Math.floor(GR_SZ/4+Math.random()*GR_SZ/2);
+      for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+        const dx=x-lx, dy=y-ly, d=Math.sqrt(dx*dx+dy*dy), n=Math.sin(x*0.5+y*0.5)*1.5;
+        if (d+n<4) tr[y][x]='water';
+      }
+    }
+  } else {
+    for (let i=0; i<2; i++) {
+      const lx=Math.floor(GR_SZ/4+Math.random()*GR_SZ/2), ly=Math.floor(GR_SZ/4+Math.random()*GR_SZ/2);
+      for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+        const dx=x-lx, dy=y-ly, d=Math.sqrt(dx*dx+dy*dy), n=Math.sin(x*0.5+y*0.5)*1.5;
+        if (d+n<3.5) tr[y][x]='water';
+      }
+    }
+    for (let i=0; i<2; i++) {
+      const mx=Math.floor(GR_SZ/4+Math.random()*GR_SZ/2), my=Math.floor(GR_SZ/4+Math.random()*GR_SZ/2);
+      for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+        const dx=x-mx, dy=y-my, d=Math.sqrt(dx*dx+dy*dy);
+        if (d<2.5 && tr[y][x]==='grass') tr[y][x]='cliff';
+      }
+    }
+  }
+  return tr;
+}
+
+// Helper function to ensure empty cells are always 1x1
+function normalizeEmptyCell(x,y) {
+  if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return;
+  const c=st.grid[y][x];
+  if (c.type==='empty' && ((c.w||1)!==1 || (c.h||1)!==1)) {
+    st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1};
+  }
+}
+
+function initGr(tt='balanced') {
+  st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[];
+  for (let y=0; y<GR_SZ; y++) {
+    const r=[], vr=[], cr=[];
+    for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1}); vr.push(50); cr.push(30); }
+    st.grid.push(r); st.landValue.push(vr); st.crime.push(cr);
+  }
+}
+
+function sv() { try { localStorage.setItem('simcity_state',JSON.stringify(st)); } catch(e) {} }
+function ld() {
+  try {
+    const s=localStorage.getItem('simcity_state');
+    if (s) {
+      const p=JSON.parse(s);
+      if (p.grid && p.grid.length===GR_SZ) {
+        st=p;
+        if (!st.rDemand) st.rDemand=50; if (!st.cDemand) st.cDemand=50; if (!st.iDemand) st.iDemand=50;
+        if (!st.year) st.year=1990; if (!st.newsEvents) st.newsEvents=[]; if (!st.ticksSinceNews) st.ticksSinceNews=0;
+        if (!st.terrain) st.terrain=genTerr('balanced'); if (!st.landValue) { st.landValue=[]; for (let y=0; y<GR_SZ; y++) { const vr=[]; for (let x=0; x<GR_SZ; x++) vr.push(50); st.landValue.push(vr); } }
+        if (!st.crime) { st.crime=[]; for (let y=0; y<GR_SZ; y++) { const cr=[]; for (let x=0; x<GR_SZ; x++) cr.push(30); st.crime.push(cr); } }
+        if (!st.fires) st.fires=[]; if (!st.employment) st.employment=0; if (!st.cars) st.cars=[]; if (!st.crimeEvents) st.crimeEvents=[];
+        if (!st.zoom) st.zoom=1;
+        for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) { 
+          if (!st.grid[y][x].level) st.grid[y][x].level=0; 
+          if (!st.grid[y][x].w) st.grid[y][x].w=1; 
+          if (!st.grid[y][x].h) st.grid[y][x].h=1; 
+          // Normalize empty cells to ensure they're always 1x1
+          if (st.grid[y][x].type==='empty') normalizeEmptyCell(x,y);
+        }
+        return true;
+      }
+    }
+  } catch(e) {}
+  return false;
+}
+
+function isRd(x,y) { if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return false; return st.grid[y][x].type==='road'; }
+function getRdNb(x,y) { return {top:isRd(x,y-1),right:isRd(x+1,y),bottom:isRd(x,y+1),left:isRd(x-1,y)}; }
+
+function drRd(px,py,nb) {
+  ctx.fillStyle='#3a3a3a'; ctx.fillRect(px,py,CL_SZ,CL_SZ);
+  const ht=nb.top,hr=nb.right,hb=nb.bottom,hl=nb.left, rc=(ht?1:0)+(hr?1:0)+(hb?1:0)+(hl?1:0);
+  ctx.fillStyle='#4a4a4a';
+  if (rc===4) { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillRect(px,py+6,CL_SZ,4); }
+  else if (rc===3) {
+    if (!ht) { ctx.fillRect(px+6,py+6,4,CL_SZ-6); ctx.fillRect(px,py+6,CL_SZ,4); }
+    else if (!hr) { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillRect(px,py+6,10,4); }
+    else if (!hb) { ctx.fillRect(px+6,py,4,10); ctx.fillRect(px,py+6,CL_SZ,4); }
+    else { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillRect(px+6,py+6,CL_SZ-6,4); }
+  } else if (rc===2) {
+    if ((ht&&hb)||(!hl&&!hr)) { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+7,py+4,2,2); ctx.fillRect(px+7,py+CL_SZ-6,2,2); }
+    else if ((hl&&hr)||(!ht&&!hb)) { ctx.fillRect(px,py+6,CL_SZ,4); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+4,py+7,2,2); ctx.fillRect(px+CL_SZ-6,py+7,2,2); }
+    else if (ht&&hr) { ctx.fillRect(px+6,py,4,10); ctx.fillRect(px+6,py+6,CL_SZ-6,4); }
+    else if (hr&&hb) { ctx.fillRect(px+6,py+6,4,CL_SZ-6); ctx.fillRect(px+6,py+6,CL_SZ-6,4); }
+    else if (hb&&hl) { ctx.fillRect(px+6,py+6,4,CL_SZ-6); ctx.fillRect(px,py+6,10,4); }
+    else { ctx.fillRect(px+6,py,4,10); ctx.fillRect(px,py+6,10,4); }
+  } else if (rc===1) {
+    if (ht||hb) { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+7,py+4,2,2); ctx.fillRect(px+7,py+CL_SZ-6,2,2); }
+    else { ctx.fillRect(px,py+6,CL_SZ,4); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+4,py+7,2,2); ctx.fillRect(px+CL_SZ-6,py+7,2,2); }
+  } else { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+7,py+4,2,2); ctx.fillRect(px+7,py+CL_SZ-6,2,2); }
+}
+
+function drTl(x,y,tp,lv,ab,w,h) {
+  const px=x*CL_SZ, py=y*CL_SZ, wd=w*CL_SZ, ht=h*CL_SZ, tr=st.terrain[y][x];
+  if (tp==='empty') {
+    if (tr==='water') ctx.fillStyle='#1e40af'; 
+    else if (tr==='cliff') ctx.fillStyle='#3e2723'; 
+    else ctx.fillStyle='#2d5016';
+    ctx.fillRect(px,py,CL_SZ,CL_SZ);
+  } else if (tp==='road') { 
+    const nb=getRdNb(x,y); drRd(px,py,nb); 
+  }
+  else if (tp==='residential') {
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
+    if (lv===0) { 
+      ctx.fillStyle='rgba(74,124,89,0.5)'; 
+      ctx.fillRect(px+3,py+3,wd-6,ht-6); 
+    }
+    else if (ab) { 
+      ctx.fillStyle='#4a4a4a'; 
+      const bw=wd-6, bh=ht-6; 
+      ctx.fillRect(px+3,py+5,bw,bh); 
+      ctx.fillStyle='#3a3a3a'; 
+      ctx.fillRect(px+3,py+5,bw,Math.floor(bh*0.25)); 
+      ctx.fillStyle='#2a2a2a'; 
+      ctx.fillRect(px+5,py+Math.floor(5+bh*0.35),2,2); 
+      ctx.fillRect(px+9,py+Math.floor(5+bh*0.35),2,2); 
+      if (w===2) ctx.fillRect(px+20,py+Math.floor(5+bh*0.35),2,2); 
+    }
+    else {
+      const sz=w===2?wd-4:(lv===1?8:10), of=w===2?2:(lv===1?4:3), bh=w===2?ht-7:(lv===1?8:10);
+      ctx.fillStyle=w===2?'#16a34a':(lv===3?'#22c55e':(lv===2?'#16a34a':'#15803d')); 
+      ctx.fillRect(px+of,py+6,sz,bh);
+      ctx.fillStyle=w===2?'#15803d':(lv===3?'#16a34a':'#15803d'); 
+      ctx.fillRect(px+of,py+6,sz,Math.floor(bh*0.25));
+      if (lv>=2 || w===2) {
+        ctx.fillStyle='#4ade80';
+        const wh=2, ww=2, gap=1;
+        const floors = w===2&&h===1?1:(lv===3?2:(lv===2?2:1));
+        for (let f=0; f<floors; f++) {
+          const wy = py+Math.floor(6+bh*0.4)+(f*(wh+gap+1));
+          ctx.fillRect(px+5,wy,ww,wh); 
+          ctx.fillRect(px+9,wy,ww,wh);
+          if (w===2) { 
+            ctx.fillRect(px+20,wy,ww,wh); 
+            ctx.fillRect(px+24,wy,ww,wh); 
+          }
+        }
+      } else if (lv===1) {
+        ctx.fillStyle='#4ade80';
+        const wy = py+Math.floor(6+bh*0.4);
+        ctx.fillRect(px+5,wy,2,2); 
+        ctx.fillRect(px+9,wy,2,2);
+      }
+      ctx.fillStyle='#166534'; 
+      ctx.fillRect(px+6,py+ht-3,3,3); 
+      if (w===2) ctx.fillRect(px+21,py+ht-3,3,3);
+    }
+  } else if (tp==='commercial') {
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
+    if (lv===0) { 
+      ctx.fillStyle='rgba(74,107,138,0.5)'; 
+      ctx.fillRect(px+2,py+2,wd-4,ht-4); 
+    }
+    else if (ab) { 
+      ctx.fillStyle='#4a4a4a'; 
+      const bw=wd-4, bh=ht-4; 
+      ctx.fillRect(px+2,py+4,bw,bh); 
+      ctx.fillStyle='#3a3a3a'; 
+      ctx.fillRect(px+2,py+4,bw,Math.floor(bh*0.25)); 
+      ctx.fillStyle='#2a2a2a'; 
+      ctx.fillRect(px+4,py+Math.floor(4+bh*0.4),3,3); 
+      ctx.fillRect(px+9,py+Math.floor(4+bh*0.4),3,3); 
+      if (w===2) ctx.fillRect(px+20,py+Math.floor(4+bh*0.4),3,3); 
+    }
+    else {
+      const bh=w===2||h===2?ht-3:(lv===1?9:(lv===2?11:13)), yo=w===2||h===2?2:(lv===1?4:(lv===2?2:1));
+      ctx.fillStyle=w===2||h===2?'#2563eb':(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')); 
+      ctx.fillRect(px+2,py+yo+1,wd-4,bh);
+      ctx.fillStyle=w===2||h===2?'#1e40af':(lv===3?'#2563eb':'#1e40af'); 
+      ctx.fillRect(px+2,py+yo+1,wd-4,Math.floor(bh*0.25));
+      ctx.fillStyle='#87ceeb';
+      const wh=3, ww=3;
+      const floors = w===2&&h===1?1:(w===2||h===2?2:1);
+      for (let f=0; f<floors; f++) {
+        const wy = py+Math.floor((yo+1)+bh*0.4)+(f*5);
+        ctx.fillRect(px+4,wy,ww,wh); 
+        ctx.fillRect(px+9,wy,ww,wh);
+        if (w===2) { 
+          ctx.fillRect(px+20,wy,ww,wh); 
+          ctx.fillRect(px+25,wy,ww,wh); 
+        }
+      }
+      ctx.fillStyle='#1e3a8a'; 
+      ctx.fillRect(px+6,py+ht-4,4,4); 
+      if (w===2) ctx.fillRect(px+22,py+ht-4,4,4);
+    }
+  } else if (tp==='industrial') {
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
+    if (lv===0) { 
+      ctx.fillStyle='rgba(138,124,74,0.5)'; 
+      ctx.fillRect(px+2,py+3,wd-4,ht-6); 
+    }
+    else if (ab) { 
+      ctx.fillStyle='#4a4a4a'; 
+      const bw=wd-4, bh=ht-6; 
+      ctx.fillRect(px+2,py+6,bw,bh); 
+      ctx.fillStyle='#3a3a3a'; 
+      ctx.fillRect(px+2,py+6,bw,Math.floor(bh*0.4)); 
+      ctx.fillStyle='#2a2a2a'; 
+      ctx.fillRect(px+5,py+11,2,2); 
+      ctx.fillRect(px+9,py+11,2,2); 
+      if (w===2) ctx.fillRect(px+21,py+11,2,2); 
+    }
+    else {
+      const bh=w===2?ht-5:(lv===1?7:(lv===2?9:11)), yo=w===2?4:(lv===1?6:(lv===2?5:3));
+      ctx.fillStyle=w===2?'#ca8a04':(lv===3?'#eab308':(lv===2?'#ca8a04':'#a16207')); 
+      ctx.fillRect(px+2,py+yo,wd-4,bh);
+      ctx.fillStyle=w===2?'#a16207':(lv===3?'#ca8a04':'#a16207'); 
+      ctx.fillRect(px+2,py+yo,wd-4,Math.floor(bh*0.3));
+      ctx.fillStyle='#fde047'; 
+      const sh=lv===3?5:4; 
+      ctx.fillRect(px+6,py+2,3,sh); 
+      if (w===2) ctx.fillRect(px+22,py+2,3,sh);
+      ctx.fillStyle='#facc15'; 
+      ctx.fillRect(px+7,py+1,1,2); 
+      if (lv>=2||w===2) ctx.fillRect(px+10,py+2,2,3); 
+      if (w===2) ctx.fillRect(px+23,py+1,1,2);
+      ctx.fillStyle='#854d0e'; 
+      ctx.fillRect(px+5,py+ht-4,2,2); 
+      ctx.fillRect(px+9,py+ht-4,2,2); 
+      if (w===2) { 
+        ctx.fillRect(px+21,py+ht-4,2,2); 
+        ctx.fillRect(px+25,py+ht-4,2,2); 
+      }
+    }
+  } else if (tp.startsWith('park')) {
+    const bc=tp==='park'?'#1d6b2e':(tp==='park2'?'#2a5a3a':(tp==='park3'?'#1a5a2a':'#2d6b1e'));
+    ctx.fillStyle=bc; ctx.fillRect(px,py,wd,ht);
+    if (tp==='park') { 
+      ctx.fillStyle='#2a8f3f'; 
+      ctx.fillRect(px+4,py+3,3,3); 
+      ctx.fillRect(px+9,py+8,3,3); 
+      if (w===2||h===2) { 
+        ctx.fillRect(px+20,py+5,3,3); 
+        ctx.fillRect(px+15,py+20,3,3); 
+      } 
+      ctx.fillStyle='#165a24'; 
+      ctx.fillRect(px+2,py+9,2,2); 
+      ctx.fillRect(px+11,py+4,2,2); 
+      ctx.fillStyle='#6b4423'; 
+      ctx.fillRect(px+7,py+6,2,4); 
+      if (w===2||h===2) ctx.fillRect(px+23,py+10,2,4); 
+    }
+    else if (tp==='park2') { 
+      ctx.fillStyle='#ff69b4'; 
+      ctx.fillRect(px+4,py+4,2,2); 
+      ctx.fillRect(px+9,py+7,2,2); 
+      ctx.fillRect(px+6,py+10,2,2); 
+      if (w===2||h===2) { 
+        ctx.fillRect(px+20,py+6,2,2); 
+        ctx.fillRect(px+25,py+9,2,2); 
+        ctx.fillRect(px+17,py+20,2,2); 
+      } 
+      ctx.fillStyle='#ffc0cb'; 
+      ctx.fillRect(px+11,py+5,1,1); 
+      ctx.fillRect(px+3,py+8,1,1); 
+    }
+    else if (tp==='park3') { 
+      ctx.fillStyle='#2d5016'; 
+      ctx.fillRect(px+5,py+2,3,4); 
+      ctx.fillRect(px+10,py+8,3,4); 
+      if (w===2||h===2) { 
+        ctx.fillRect(px+21,py+4,3,4); 
+        ctx.fillRect(px+16,py+20,3,4); 
+      } 
+      ctx.fillStyle='#1a4010'; 
+      ctx.fillRect(px+3,py+10,2,3); 
+      ctx.fillRect(px+12,py+5,2,3); 
+    }
+    else { 
+      ctx.fillStyle='#ffd700'; 
+      ctx.fillRect(px+5,py+5,3,3); 
+      ctx.fillRect(px+10,py+9,3,3); 
+      if (w===2||h===2) { 
+        ctx.fillRect(px+21,py+7,3,3); 
+        ctx.fillRect(px+16,py+20,3,3); 
+      } 
+      ctx.fillStyle='#8b4513'; 
+      ctx.fillRect(px+6,py+8,1,3); 
+      ctx.fillRect(px+11,py+12,1,3); 
+    }
+  } else if (tp==='police') { 
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
+    ctx.fillStyle='#000080'; ctx.fillRect(px+2,py+4,12,10); 
+    ctx.fillStyle='#0000a0'; ctx.fillRect(px+2,py+4,12,4); 
+    ctx.fillStyle='#87ceeb'; ctx.fillRect(px+4,py+7,3,3); ctx.fillRect(px+9,py+7,3,3); 
+    ctx.fillStyle='#ff0000'; ctx.fillRect(px+6,py+5,4,1); 
+    ctx.fillStyle='#0000ff'; ctx.fillRect(px+6,py+6,4,1); 
+    ctx.fillStyle='#4a4a4a'; ctx.fillRect(px+6,py+11,4,3); 
+  }
+  else if (tp==='fire') { 
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
+    ctx.fillStyle='#8b0000'; ctx.fillRect(px+2,py+4,12,10); 
+    ctx.fillStyle='#a00000'; ctx.fillRect(px+2,py+4,12,4); 
+    ctx.fillStyle='#444444'; ctx.fillRect(px+4,py+7,3,3); ctx.fillRect(px+9,py+7,3,3); 
+    ctx.fillStyle='#ff4500'; ctx.fillRect(px+6,py+5,4,2); 
+    ctx.fillStyle='#ffd700'; ctx.fillRect(px+7,py+6,2,1); 
+    ctx.fillStyle='#4a4a4a'; ctx.fillRect(px+6,py+11,4,3); 
+  }
+  else if (tp==='school') { 
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
+    ctx.fillStyle='#daa520'; ctx.fillRect(px+2,py+4,12,10); 
+    ctx.fillStyle='#b8860b'; ctx.fillRect(px+2,py+4,12,4); 
+    ctx.fillStyle='#87ceeb'; ctx.fillRect(px+4,py+7,3,3); ctx.fillRect(px+9,py+7,3,3); 
+    ctx.fillStyle='#8b4513'; ctx.fillRect(px+6,py+11,4,3); 
+    ctx.fillStyle='#000000'; ctx.fillRect(px+7,py+8,2,1); 
+  }
+  else if (tp==='hospital') { 
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
+    ctx.fillStyle='#dc143c'; ctx.fillRect(px+2,py+4,12,10); 
+    ctx.fillStyle='#c01030'; ctx.fillRect(px+2,py+4,12,4); 
+    ctx.fillStyle='#87ceeb'; ctx.fillRect(px+4,py+7,3,3); ctx.fillRect(px+9,py+7,3,3); 
+    ctx.fillStyle='#ffffff'; ctx.fillRect(px+7,py+5,2,5); ctx.fillRect(px+5,py+7,6,1); 
+    ctx.fillStyle='#4a4a4a'; ctx.fillRect(px+6,py+11,4,3); 
+  }
+  ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=0.5; ctx.strokeRect(px,py,wd,ht);
+}
+
+function drGr() {
+  ctx.clearRect(0,0,cvs.width,cvs.height); const drn={};
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const k=`${x},${y}`; if (drn[k]) continue;
+    const c=st.grid[y][x]; drTl(x,y,c.type,c.level||0,c.abandoned||false,c.w||1,c.h||1);
+    for (let dy=0; dy<(c.h||1); dy++) for (let dx=0; dx<(c.w||1); dx++) drn[`${x+dx},${y+dy}`]=true;
+  }
+  if (showLandValueOverlay) drawLandValueOverlay();
+  if (showCrimeOverlay) drawCrimeOverlay();
+  st.fires.forEach(f => {
+    if (f.age<20) {
+      ctx.fillStyle=f.age%4<2?'#ff4500':'#ffd700';
+      ctx.fillRect(f.x*CL_SZ+4,f.y*CL_SZ+2,8,12);
+    }
+  });
+  st.crimeEvents.forEach(evt => {
+    if (evt.age<20) {
+      ctx.fillStyle=evt.age%4<2?'#dc143c':'#ff0000';
+      ctx.fillRect(evt.x*CL_SZ+5,evt.y*CL_SZ+3,6,10);
+    }
+  });
+  st.cars.forEach(c => {
+    ctx.fillStyle=c.color;
+    ctx.fillRect(c.x,c.y,3,2);
+  });
+}
+
+function drawLandValueOverlay() {
+  ctx.save();
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const terrain=st.terrain[y][x];
+      if (terrain==='water'||terrain==='cliff') continue;
+      ctx.fillStyle=getLandValueOverlayColor(st.landValue[y][x]);
+      ctx.fillRect(x*CL_SZ,y*CL_SZ,CL_SZ,CL_SZ);
+    }
+  }
+  ctx.restore();
+}
+
+function getLandValueOverlayColor(value) {
+  const ratio=Math.max(0,Math.min(1,(value||0)/100));
+  const r=Math.round(LAND_VALUE_LOW_COLOR.r+(LAND_VALUE_HIGH_COLOR.r-LAND_VALUE_LOW_COLOR.r)*ratio);
+  const g=Math.round(LAND_VALUE_LOW_COLOR.g+(LAND_VALUE_HIGH_COLOR.g-LAND_VALUE_LOW_COLOR.g)*ratio);
+  const b=Math.round(LAND_VALUE_LOW_COLOR.b+(LAND_VALUE_HIGH_COLOR.b-LAND_VALUE_LOW_COLOR.b)*ratio);
+  return `rgba(${r},${g},${b},0.4)`;
+}
+
+function setLandValueOverlay(active) {
+  const enable=!!active;
+  if (enable) {
+    showLandValueOverlay=true;
+    updLV();
+    drGr();
+    return;
+  }
+  if (showLandValueOverlay) {
+    showLandValueOverlay=false;
+    drGr();
+  }
+}
+
+function drawCrimeOverlay() {
+  ctx.save();
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const terrain=st.terrain[y][x];
+      if (terrain==='water'||terrain==='cliff') continue;
+      ctx.fillStyle=getCrimeOverlayColor(st.crime[y][x]||30);
+      ctx.fillRect(x*CL_SZ,y*CL_SZ,CL_SZ,CL_SZ);
+    }
+  }
+  ctx.restore();
+}
+
+function getCrimeOverlayColor(value) {
+  const crimeLevel=Math.max(0,Math.min(100,value||30));
+  let r, g, b;
+  if (crimeLevel>=70) {
+    // High crime: red (255,0,0) to dark red (200,0,0)
+    const ratio=(crimeLevel-70)/30;
+    r=Math.round(200+55*ratio);
+    g=0;
+    b=0;
+  } else if (crimeLevel>=30) {
+    // Medium crime: yellow (255,255,0) to red (255,0,0)
+    const ratio=(crimeLevel-30)/40;
+    r=255;
+    g=Math.round(255*(1-ratio));
+    b=0;
+  } else {
+    // Low crime: green (0,255,0) to yellow (255,255,0)
+    const ratio=crimeLevel/30;
+    r=Math.round(255*ratio);
+    g=255;
+    b=0;
+  }
+  return `rgba(${r},${g},${b},0.5)`;
+}
+
+function setCrimeOverlay(active) {
+  const enable=!!active;
+  if (enable) {
+    showCrimeOverlay=true;
+    updCrime();
+    drGr();
+    return;
+  }
+  if (showCrimeOverlay) {
+    showCrimeOverlay=false;
+    drGr();
+  }
+}
+
+function findPath(sx,sy,ex,ey) {
+  const q=[{x:sx,y:sy,path:[{x:sx,y:sy}]}], vis=new Set();
+  while(q.length>0) {
+    const cur=q.shift(), k=`${cur.x},${cur.y}`;
+    if (vis.has(k)) continue;
+    vis.add(k);
+    if (cur.x===ex && cur.y===ey) return cur.path;
+    if (cur.path.length>50) continue;
+    const dirs=[[0,-1],[1,0],[0,1],[-1,0]];
+    for (const [dx,dy] of dirs) {
+      const nx=cur.x+dx, ny=cur.y+dy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ && !vis.has(`${nx},${ny}`)) {
+        if (st.grid[ny][nx].type==='road') {
+          q.push({x:nx,y:ny,path:[...cur.path,{x:nx,y:ny}]});
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function spawnCar() {
+  const res=[], com=[], ind=[], pol=[], fir=[];
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type==='residential' && !c.abandoned && hasRdAcc(x,y)) res.push({x,y});
+    else if (c.type==='commercial' && !c.abandoned && hasRdAcc(x,y)) com.push({x,y});
+    else if (c.type==='industrial' && !c.abandoned && hasRdAcc(x,y)) ind.push({x,y});
+    else if (c.type==='police' && hasRdAcc(x,y)) pol.push({x,y});
+    else if (c.type==='fire' && hasRdAcc(x,y)) fir.push({x,y});
+  }
+  if (res.length===0) return;
+  
+  let tp='normal', src, dst, clr;
+  const r=Math.random();
+  if (r<0.05 && pol.length>0) {
+    tp='police'; src=pol[Math.floor(Math.random()*pol.length)];
+    const opts=[...res,...com,...ind].filter(d=>d.x!==src.x||d.y!==src.y);
+    if (opts.length===0) return;
+    dst=opts[Math.floor(Math.random()*opts.length)];
+    clr='#2196f3';
+  } else if (r<0.1 && fir.length>0) {
+    tp='fire'; src=fir[Math.floor(Math.random()*fir.length)];
+    const opts=[...res,...com,...ind].filter(d=>d.x!==src.x||d.y!==src.y);
+    if (opts.length===0) return;
+    dst=opts[Math.floor(Math.random()*opts.length)];
+    clr='#dc143c';
+  } else {
+    src=res[Math.floor(Math.random()*res.length)];
+    const dests=[...com,...ind].filter(d=>d.x!==src.x||d.y!==src.y);
+    if (dests.length===0) return;
+    dst=dests[Math.floor(Math.random()*dests.length)];
+    const rnd=Math.random();
+    if (rnd<0.7) clr='#808080';
+    else if (rnd<0.85) clr='#a0a0a0';
+    else if (rnd<0.95) clr='#606060';
+    else clr=['#ffeb3b','#4caf50','#9c27b0'][Math.floor(Math.random()*3)];
+  }
+  
+  const rdNear=[];
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+    const nx=src.x+dx, ny=src.y+dy;
+    if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ && st.grid[ny][nx].type==='road') rdNear.push({x:nx,y:ny});
+  }
+  if (rdNear.length===0) return;
+  const start=rdNear[Math.floor(Math.random()*rdNear.length)];
+  
+  const rdEnd=[];
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+    const nx=dst.x+dx, ny=dst.y+dy;
+    if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ && st.grid[ny][nx].type==='road') rdEnd.push({x:nx,y:ny});
+  }
+  if (rdEnd.length===0) return;
+  const end=rdEnd[Math.floor(Math.random()*rdEnd.length)];
+  
+  const path=findPath(start.x,start.y,end.x,end.y);
+  if (!path || path.length<2) return;
+  
+  // Determine direction: randomly choose forward or reverse
+  const reverse=Math.random()<0.5;
+  const carPath=reverse ? [...path].reverse() : path;
+  
+  // Determine lane offset based on first segment direction
+  // Cars going in opposite directions should be in opposite lanes
+  let laneOffset=0;
+  let startX=carPath[0].x*CL_SZ+7;
+  let startY=carPath[0].y*CL_SZ+7;
+  
+  if (carPath.length>=2) {
+    const dx=carPath[1].x-carPath[0].x;
+    const dy=carPath[1].y-carPath[0].y;
+    
+    if (Math.abs(dx)>Math.abs(dy)) {
+      // Horizontal movement: use y offset for lanes
+      // Left-to-right (dx > 0): bottom lane (+5)
+      // Right-to-left (dx < 0): top lane (-5)
+      laneOffset=dx>0 ? 5 : -5;
+      startY+=laneOffset;
+    } else {
+      // Vertical movement: use x offset for lanes
+      // Top-to-bottom (dy > 0): right lane (+5)
+      // Bottom-to-top (dy < 0): left lane (-5)
+      laneOffset=dy>0 ? 5 : -5;
+      startX+=laneOffset;
+    }
+  }
+  
+  st.cars.push({
+    x:startX,
+    y:startY,
+    path:carPath,
+    pathIdx:0,
+    color:clr,
+    type:tp,
+    laneOffset:laneOffset,
+    reverse:reverse
+  });
+}
+
+function updCars() {
+  st.cars=st.cars.filter(c => {
+    if (c.pathIdx>=c.path.length-1) return false;
+    
+    let remainingDist=getCarSpeedPerFrame();
+    if (remainingDist<=0) return true;
+    
+    while (remainingDist>0) {
+      if (c.pathIdx>=c.path.length-1) return false;
+      const {tx,ty}=getCarSegmentTarget(c);
+      const dx=tx-c.x, dy=ty-c.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if (dist===0) {
+        c.pathIdx++;
+        if (c.pathIdx>=c.path.length-1) return false;
+        updateCarLaneOffset(c);
+        continue;
+      }
+      const step=Math.min(dist,remainingDist);
+      c.x+=dx/dist*step;
+      c.y+=dy/dist*step;
+      remainingDist-=step;
+      if (step===dist) {
+        c.pathIdx++;
+        if (c.pathIdx>=c.path.length-1) return false;
+        updateCarLaneOffset(c);
+      } else {
+        break;
+      }
+    }
+    return true;
+  });
+  
+  const maxCars=Math.min(30,Math.floor(st.population/20));
+  if (st.speed>0 && st.population>10 && st.cars.length<maxCars && Math.random()<0.05) {
+    spawnCar();
+  }
+}
+
+function updInpWd() {
+  const inp=document.getElementById('cityName'), tmp=document.createElement('span');
+  tmp.style.font=window.getComputedStyle(inp).font; tmp.style.visibility='hidden'; tmp.style.position='absolute'; tmp.style.whiteSpace='pre';
+  tmp.textContent=inp.value||inp.placeholder||'new city'; document.body.appendChild(tmp); inp.style.width=(tmp.offsetWidth+8)+'px'; document.body.removeChild(tmp);
+}
+
+function shwNxtNws() {
+  if (nwsQ.length>0 && !trans) {
+    const tk=document.getElementById('newsTicker'), ot=tk.textContent, nt=nwsQ.shift();
+    if (ot===nt) return;
+    trans=true; tk.classList.add('ticker-roll');
+    setTimeout(() => { tk.textContent=nt; tk.classList.remove('ticker-roll'); tk.style.transform='translateY(100%)'; tk.style.opacity='0';
+      setTimeout(() => { tk.style.transition='all 0.5s ease-out'; tk.style.transform='translateY(0)'; tk.style.opacity='1';
+        setTimeout(() => { trans=false; if (nwsQ.length>0) setTimeout(shwNxtNws,100); },500);
+      },10);
+    },500);
+    return;
+  }
+  if (st.newsEvents.length===0||trans) return;
+  const tk=document.getElementById('newsTicker'), ot=tk.textContent, nt=st.newsEvents[nwsIdx];
+  if (ot===nt) { nwsIdx=(nwsIdx+1)%st.newsEvents.length; return; }
+  trans=true; tk.classList.add('ticker-roll');
+  setTimeout(() => { tk.textContent=nt; tk.classList.remove('ticker-roll'); tk.style.transform='translateY(100%)'; tk.style.opacity='0';
+    setTimeout(() => { tk.style.transition='all 0.5s ease-out'; tk.style.transform='translateY(0)'; tk.style.opacity='1';
+      setTimeout(() => { trans=false; },500);
+    },10);
+  },500);
+  nwsIdx=(nwsIdx+1)%st.newsEvents.length;
+}
+
+function updNwsTk() {
+  if (tkrTmr) clearInterval(tkrTmr);
+  if (st.newsEvents.length>0 && st.speed>0) {
+    nwsIdx=st.newsEvents.length-1; const tk=document.getElementById('newsTicker');
+    tk.textContent=st.newsEvents[nwsIdx]; tk.style.transform='translateY(0)'; tk.style.opacity='1';
+    nwsIdx=(nwsIdx+1)%st.newsEvents.length; tkrTmr=setInterval(shwNxtNws,5000);
+  } else {
+    const tk=document.getElementById('newsTicker');
+    if (st.speed===0) tk.textContent=st.newsEvents.length>0?st.newsEvents[st.newsEvents.length-1]:'';
+    else if (st.newsEvents.length===0) tk.textContent='';
+    tk.classList.remove('ticker-roll');
+  }
+}
+
+const STAT_INFO_TYPES = ['rci','pop','money','happy'];
+let currentInfoType = null;
+
+function shwInfo(title,content,infoType) {
+  plySnd('click');
+  const pnl=document.getElementById('infoPanel');
+  
+  // If clicking the same stat, toggle it off
+  if (currentInfoType === infoType && !pnl.classList.contains('hidden')) {
+    pnl.classList.add('hidden');
+    currentInfoType = null;
+    setLandValueOverlay(false);
+    setCrimeOverlay(false);
+    return;
+  }
+  
+  // Otherwise, show the new panel
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('aiPanel').classList.add('hidden');
+  document.getElementById('infoTitle').textContent=title;
+  document.getElementById('infoContent').innerHTML=content;
+  pnl.classList.remove('hidden');
+  currentInfoType = infoType;
+  if (infoType === 'happy') {
+    setLandValueOverlay(false);
+    setCrimeOverlay(true);
+  } else {
+    setCrimeOverlay(false);
+    setLandValueOverlay(STAT_INFO_TYPES.includes(infoType));
+  }
+}
+
+function updUI() {
+  const inp=document.getElementById('cityName'); if (!edtNm) { inp.value=st.cityName; updInpWd(); }
+  document.getElementById('population').textContent=st.population.toLocaleString();
+  document.getElementById('money').textContent=`${(st.money/1000).toFixed(0)}k`;
+  document.getElementById('happiness').textContent=st.happiness;
+  if (!edtNm) document.getElementById('yearDisplay').textContent=st.year;
+  const mEl=document.getElementById('money');
+  if (st.money<0) { mEl.classList.remove('text-white'); mEl.classList.add('text-red-400'); }
+  else { mEl.classList.remove('text-red-400'); mEl.classList.add('text-white'); }
+  const rB=document.getElementById('rDemand'), cB=document.getElementById('cDemand'), iB=document.getElementById('iDemand');
+  rB.style.height=`${st.rDemand}%`; cB.style.height=`${st.cDemand}%`; iB.style.height=`${st.iDemand}%`;
+  rB.parentElement.style.display='flex'; rB.parentElement.style.flexDirection='column'; rB.parentElement.style.justifyContent='flex-end';
+  cB.parentElement.style.display='flex'; cB.parentElement.style.flexDirection='column'; cB.parentElement.style.justifyContent='flex-end';
+  iB.parentElement.style.display='flex'; iB.parentElement.style.flexDirection='column'; iB.parentElement.style.justifyContent='flex-end';
+  const sBtn=document.getElementById('speedToggle');
+  if (st.speed===0) sBtn.textContent='⏸'; else if (st.speed===3000) sBtn.textContent='1x'; else if (st.speed===1500) sBtn.textContent='2x'; else if (st.speed===500) sBtn.textContent='3x';
+}
+
+function selTl(tl) {
+  st.selectedTool=tl;
+  updateToolSelection();
+  const c=COSTS[tl]||0, cTx=document.getElementById('costText'), sTx=document.getElementById('statusText');
+  if (tl==='bulldoze') { sTx.textContent='click to demolish buildings'; cTx.textContent=''; }
+  else if (tl) { const dn=tl.startsWith('park')?'park':tl; sTx.textContent=`placing ${dn}`; cTx.textContent=c>0?`$${c.toLocaleString()}`:''; }
+  else { sTx.textContent='select a tool to start building'; cTx.textContent=''; }
+}
+
+function canPlLg(x,y,w,h,zt) {
+  for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+    const nx=x+dx, ny=y+dy; if (nx>=GR_SZ||ny>=GR_SZ) return false;
+    const c=st.grid[ny][nx]; 
+    // Normalize empty cells to ensure they're 1x1
+    if (c.type==='empty') normalizeEmptyCell(nx,ny);
+    // Prevent merging through roads and other incompatible tiles
+    if (c.type==='road') return false;
+    if (c.type!=='empty' && c.type!==zt && !c.abandoned) return false;
+    const tr=st.terrain[ny][nx]; if (tr==='water'||tr==='cliff') return false;
+  }
+  return true;
+}
+
+// Helper: given any cell in a building, find the building's top-left and size
+function getBuildingBoundsFromCell(x,y) {
+  const c=st.grid[y][x];
+  const baseW=c.w||1, baseH=c.h||1;
+
+  // Expand left/right and up/down while the cell looks like the same building.
+  let startX=x, endX=x, startY=y, endY=y;
+
+  // Horizontal extent
+  for (let cx=x-1; cx>=0; cx--) {
+    const cc=st.grid[y][cx];
+    if (cc.type===c.type && (cc.w||1)===baseW && (cc.h||1)===baseH) startX=cx; else break;
+  }
+  for (let cx=x+1; cx<GR_SZ; cx++) {
+    const cc=st.grid[y][cx];
+    if (cc.type===c.type && (cc.w||1)===baseW && (cc.h||1)===baseH) endX=cx; else break;
+  }
+
+  // Vertical extent
+  for (let cy=y-1; cy>=0; cy--) {
+    const cc=st.grid[cy][x];
+    if (cc.type===c.type && (cc.w||1)===baseW && (cc.h||1)===baseH) startY=cy; else break;
+  }
+  for (let cy=y+1; cy<GR_SZ; cy++) {
+    const cc=st.grid[cy][x];
+    if (cc.type===c.type && (cc.w||1)===baseW && (cc.h||1)===baseH) endY=cy; else break;
+  }
+
+  const w=endX-startX+1;
+  const h=endY-startY+1;
+  return {startX,startY,w,h};
+}
+
+function plcTl(x,y) {
+  if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return; if (!st.selectedTool) return;
+  const c=st.grid[y][x], tr=st.terrain[y][x];
+  if (tr==='water'||tr==='cliff') { plySnd('error'); return; }
+  if (st.selectedTool==='bulldoze') {
+    if (c.type!=='empty') {
+      plySnd('bulldoze');
+
+      // Roads: always bulldoze a single tile only
+      if (c.type==='road') {
+        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1};
+        normalizeEmptyCell(x,y);
+        drGr(); sv();
+        return;
+      }
+
+      const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
+      const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
+      const isEmptyZone=isZone && (c.level===0 || c.abandoned);
+      const isSmallMulti=(w===2 && h===1) || (w===1 && h===2) || (w===2 && h===2);
+
+      if (isEmptyZone || isSmallMulti) {
+        // Bulldoze the entire small merged building or empty zone
+        for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+          const nx=startX+dx, ny=startY+dy; if (nx<GR_SZ && ny<GR_SZ) {
+            st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1};
+            normalizeEmptyCell(nx,ny);
+          }
+        }
+      } else {
+        // All other buildings: only bulldoze the clicked cell
+        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1};
+        normalizeEmptyCell(x,y);
+      }
+
+      drGr(); sv();
+    }
+    return;
+  }
+  const isPk=st.selectedTool.startsWith('park');
+  
+  // For parks: allow placing on empty zones (level 0 or abandoned zones)
+  if (isPk) {
+    const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
+    const isEmptyZone=isZone && (c.level===0 || c.abandoned);
+    if (c.type!=='empty' && !isEmptyZone) return;
+    
+    const cs=COSTS[st.selectedTool]||0; 
+    if (st.money<cs) { plySnd('error'); return; }
+    
+    plySnd('place'); 
+    st.money-=cs;
+    
+    // If replacing an empty zone, replace the entire building
+    if (isEmptyZone) {
+      const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
+      // Replace all cells of the zone building with park
+      for (let dy=0; dy<h; dy++) {
+        for (let dx=0; dx<w; dx++) {
+          const nx=startX+dx, ny=startY+dy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            st.grid[ny][nx]={type:st.selectedTool,age:0,level:1,w:1,h:1};
+          }
+        }
+      }
+      // Try to merge parks after placement (from the top-left)
+      tryMrgPark(startX,startY);
+    } else {
+      // Normal placement on empty terrain
+      st.grid[y][x]={type:st.selectedTool,age:0,level:1,w:1,h:1};
+      // Try to merge with adjacent parks of the same type
+      tryMrgPark(x,y);
+    }
+  } else {
+    // For non-park tools: only allow empty or abandoned
+    if (c.type!=='empty' && !c.abandoned) return;
+    const cs=COSTS[st.selectedTool]||0; 
+    if (st.money<cs) { plySnd('error'); return; }
+    plySnd('place'); 
+    st.money-=cs;
+    st.grid[y][x]={type:st.selectedTool,age:0,level:0,w:1,h:1};
+  }
+  drGr(); updUI(); sv();
+}
+
+let isDragging = false, dragStart = null, lastPlaced = null, isScrolling = false, touchStartPos = null, lastTouchPos = null;
+
+function getCarSpeedMultiplier() {
+  if (st.speed<=0) return 0;
+  if (st.speed===500) return 3;
+  if (st.speed===1500) return 2;
+  return 1;
+}
+
+const CAR_BASE_SPEED = 1.0;
+
+function getCarSpeedPerFrame() {
+  return CAR_BASE_SPEED * getCarSpeedMultiplier();
+}
+
+function updateCarLaneOffset(car) {
+  if (car.pathIdx>=car.path.length-1) return;
+  const curNode=car.path[car.pathIdx];
+  const nextNode=car.path[car.pathIdx+1];
+  const dxSeg=nextNode.x-curNode.x;
+  const dySeg=nextNode.y-curNode.y;
+  if (Math.abs(dxSeg)>Math.abs(dySeg)) {
+    car.laneOffset=dxSeg>0 ? 5 : -5;
+  } else {
+    car.laneOffset=dySeg>0 ? 5 : -5;
+  }
+}
+
+function getCarSegmentTarget(car) {
+  const curNode=car.path[car.pathIdx];
+  const nextNode=car.path[car.pathIdx+1];
+  let tx=nextNode.x*CL_SZ+7;
+  let ty=nextNode.y*CL_SZ+7;
+  const dxSeg=nextNode.x-curNode.x;
+  const dySeg=nextNode.y-curNode.y;
+  if (Math.abs(dxSeg)>Math.abs(dySeg)) ty+=car.laneOffset;
+  else tx+=car.laneOffset;
+  return {tx,ty};
+}
+
+function getCanvasPos(e) {
+  const r = cvs.getBoundingClientRect();
+  const sx = cvs.width / r.width, sy = cvs.height / r.height;
+  let clientX, clientY;
+  
+  if (e.touches && e.touches.length > 0) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+    lastTouchPos = { x: clientX, y: clientY };
+  } else if (e.changedTouches && e.changedTouches.length > 0) {
+    // For touchend events
+    clientX = e.changedTouches[0].clientX;
+    clientY = e.changedTouches[0].clientY;
+  } else if (lastTouchPos) {
+    // Fallback to last known touch position
+    clientX = lastTouchPos.x;
+    clientY = lastTouchPos.y;
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  
+  const x = Math.floor((clientX - r.left) * sx / CL_SZ);
+  const y = Math.floor((clientY - r.top) * sy / CL_SZ);
+  return { x, y };
+}
+
+function placeLine(x0, y0, x1, y1) {
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy, x = x0, y = y0;
+  const placed = new Set();
+  
+  while (true) {
+    const key = `${x},${y}`;
+    if (!placed.has(key)) {
+      placed.add(key);
+      plcTl(x, y);
+    }
+    if (x === x1 && y === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx) { err += dx; y += sy; }
+  }
+}
+
+let lastZoneBounds = null;
+
+function placeZone(x0, y0, x1, y1) {
+  const minX = Math.min(x0, x1), maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1), maxY = Math.max(y0, y1);
+  const currentBounds = `${minX},${minY},${maxX},${maxY}`;
+  
+  // Only place if bounds changed to avoid redundant work
+  if (currentBounds === lastZoneBounds) return;
+  lastZoneBounds = currentBounds;
+  
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      plcTl(x, y);
+    }
+  }
+}
+
+function handleDragStart(e) {
+  // On mobile (touch events), allow scrolling and only handle taps
+  if (e.touches) {
+    touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    isDragging = false;
+    isScrolling = false;
+    // Don't prevent default - allow native scrolling
+    return;
+  }
+  
+  // Desktop mouse behavior
+  if (!st.selectedTool) return;
+  
+  const pos = getCanvasPos(e);
+  dragStart = pos;
+  lastPlaced = { x: pos.x, y: pos.y };
+  lastZoneBounds = null; // Reset zone bounds tracking
+  isDragging = true;
+  isScrolling = false;
+}
+
+function handleDragMove(e) {
+  // On mobile (touch events), allow native scrolling - don't place tiles while dragging
+  if (e.touches) {
+    if (touchStartPos) {
+      const dx = Math.abs(e.touches[0].clientX - touchStartPos.x);
+      const dy = Math.abs(e.touches[0].clientY - touchStartPos.y);
+      // If moved significantly, mark as scrolling (not a tap)
+      if (dx > 5 || dy > 5) {
+        isScrolling = true;
+      }
+    }
+    // Don't prevent default - allow native scrolling
+    return;
+  }
+  
+  // Desktop mouse behavior
+  if (!st.selectedTool || !isDragging || !dragStart) return;
+  
+  const pos = getCanvasPos(e);
+  
+  // For roads: place as line
+  if (st.selectedTool === 'road') {
+    placeLine(dragStart.x, dragStart.y, pos.x, pos.y);
+    dragStart = pos; // Update start for continuous line
+  }
+  // For RCI zones: place as zone
+  else if (st.selectedTool === 'residential' || st.selectedTool === 'commercial' || st.selectedTool === 'industrial') {
+    placeZone(dragStart.x, dragStart.y, pos.x, pos.y);
+  }
+  // For other tools: place individual tiles
+  else {
+    const key = `${pos.x},${pos.y}`;
+    const lastKey = `${lastPlaced.x},${lastPlaced.y}`;
+    if (key !== lastKey) {
+      plcTl(pos.x, pos.y);
+      lastPlaced = pos;
+    }
+  }
+}
+
+function handleDragEnd(e) {
+  // Handle mobile tap (touch without scrolling)
+  if (e.changedTouches && touchStartPos && !isScrolling && st.selectedTool) {
+    // This was a tap, not a scroll - place a tile
+    const pos = getCanvasPos(e);
+    plcTl(pos.x, pos.y);
+  }
+  // Handle desktop mouse drag end
+  else if (isDragging && !isScrolling && dragStart && st.selectedTool && !e.touches) {
+    const pos = getCanvasPos(e);
+    // If we didn't move much (or at all), treat as click
+    const moved = Math.abs(pos.x - dragStart.x) > 0 || Math.abs(pos.y - dragStart.y) > 0;
+    if (!moved) {
+      plcTl(pos.x, pos.y);
+    }
+  }
+  
+  isDragging = false;
+  isScrolling = false;
+  dragStart = null;
+  lastPlaced = null;
+  touchStartPos = null;
+  lastTouchPos = null;
+  lastZoneBounds = null;
+}
+
+// Mouse events
+cvs.addEventListener('mousedown', handleDragStart);
+cvs.addEventListener('mousemove', handleDragMove);
+cvs.addEventListener('mouseup', handleDragEnd);
+cvs.addEventListener('mouseleave', handleDragEnd);
+
+// Touch events - passive for smooth scrolling on mobile
+cvs.addEventListener('touchstart', handleDragStart, { passive: true });
+cvs.addEventListener('touchmove', handleDragMove, { passive: true });
+cvs.addEventListener('touchend', handleDragEnd, { passive: true });
+cvs.addEventListener('touchcancel', handleDragEnd, { passive: true });
+
+// Click handler for mouse only (touch events are handled separately)
+cvs.addEventListener('click', e => {
+  // Only handle mouse clicks, not touch-generated clicks
+  if (e.detail === 0) return; // Touch events have detail = 0
+  if (!isDragging && !isScrolling && st.selectedTool) {
+    const r = cvs.getBoundingClientRect(), sx = cvs.width / r.width, sy = cvs.height / r.height;
+    const x = Math.floor((e.clientX - r.left) * sx / CL_SZ), y = Math.floor((e.clientY - r.top) * sy / CL_SZ);
+    plcTl(x, y);
+  }
+});
+
+let activeSubmenu = null;
+
+const submenuItems = {
+  park: [
+    { tool: 'park', icon: '🌳' },
+    { tool: 'park2', icon: '🌸' },
+    { tool: 'park3', icon: '🌲' },
+    { tool: 'park4', icon: '🌻' }
+  ]
+};
+
+function openSubmenu(button, submenuKey) {
+  // Close any existing submenu
+  closeSubmenu();
+  
+  // Store reference to the button
+  activeSubmenu = { button, submenuKey };
+  
+  // Change button to X
+  const originalContent = button.innerHTML;
+  button.dataset.originalContent = originalContent;
+  button.innerHTML = '✕';
+  button.classList.add('submenu-active');
+  
+  // Get sub-toolbar
+  const subToolbar = document.getElementById('subToolbar');
+  
+  // Populate sub-toolbar with items (but keep hidden for now)
+  subToolbar.innerHTML = '';
+  const items = submenuItems[submenuKey];
+  items.forEach(item => {
+    const subBtn = document.createElement('button');
+    subBtn.className = 'tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center';
+    subBtn.dataset.tool = item.tool;
+    subBtn.textContent = item.icon;
+    subBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      plySnd('click');
+      selTl(item.tool);
+      // Don't close submenu - keep it open so user can switch tools
+    });
+    subToolbar.appendChild(subBtn);
+  });
+  
+  // Auto-select the first tool in the submenu
+  if (items.length > 0) {
+    selTl(items[0].tool);
+  }
+  
+  // Make submenu invisible but rendered to measure it
+  subToolbar.style.visibility = 'hidden';
+  subToolbar.classList.remove('hidden');
+  
+  // Position submenu vertically centered on the toggle button
+  requestAnimationFrame(() => {
+    const parentContainer = button.closest('.flex.flex-shrink-0.relative');
+    const parentRect = parentContainer.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    const subToolbarRect = subToolbar.getBoundingClientRect();
+    
+    // Calculate positions relative to parent container
+    const buttonTopRelative = buttonRect.top - parentRect.top;
+    const buttonCenterY = buttonTopRelative + buttonRect.height / 2;
+    const submenuHeight = subToolbarRect.height;
+    const submenuCenterY = submenuHeight / 2;
+    
+    // Calculate top position to center submenu on button
+    const topPosition = buttonCenterY - submenuCenterY;
+    subToolbar.style.top = `${topPosition}px`;
+    
+    // Now make it visible
+    subToolbar.style.visibility = '';
+    
+    updateToolSelection();
+  });
+}
+
+function closeSubmenu() {
+  if (activeSubmenu) {
+    // Restore original button content
+    if (activeSubmenu.button.dataset.originalContent) {
+      activeSubmenu.button.innerHTML = activeSubmenu.button.dataset.originalContent;
+      activeSubmenu.button.classList.remove('submenu-active');
+    }
+    activeSubmenu = null;
+  }
+  
+  // Hide sub-toolbar and reset position
+  const subToolbar = document.getElementById('subToolbar');
+  subToolbar.classList.add('hidden');
+  subToolbar.style.top = '';
+  subToolbar.style.visibility = '';
+}
+
+function updateToolSelection() {
+  // Update all tool buttons including sub-toolbar buttons
+  document.querySelectorAll('.tool-btn').forEach(b => {
+    const bt = b.dataset.tool;
+    b.style.borderColor = '';
+    b.style.opacity = '';
+    if (bt === st.selectedTool) {
+      b.style.borderColor = '#666';
+      b.style.opacity = '1';
+    } else {
+      // All other unselected buttons get reduced opacity (including submenu toggle showing X)
+      b.style.opacity = '0.5';
+    }
+  });
+}
+
+document.querySelectorAll('.tool-btn').forEach(b => {
+  b.addEventListener('click', (e) => {
+    plySnd('click');
+    
+    // Check if this button has a submenu
+    if (b.dataset.submenu) {
+      // If submenu is already open, close it
+      if (activeSubmenu && activeSubmenu.button === b) {
+        closeSubmenu();
+      } else {
+        // Open submenu
+        openSubmenu(b, b.dataset.submenu);
+      }
+    } else if (b.dataset.tool) {
+      // Regular tool selection
+      selTl(b.dataset.tool);
+      closeSubmenu();
+    }
+  });
+});
+
+function centerCanvas() {
+  const gridContainer = document.getElementById('grid');
+  if (!gridContainer) return;
+  
+  // Wait for next frame to ensure layout is calculated
+  requestAnimationFrame(() => {
+    const zoom = st.zoom || 1;
+    const canvasWidth = cvs.width * zoom;
+    const canvasHeight = cvs.height * zoom;
+    const containerWidth = gridContainer.clientWidth;
+    const containerHeight = gridContainer.clientHeight;
+    
+    // If canvas is smaller than container, center it with CSS
+    if (canvasWidth <= containerWidth && canvasHeight <= containerHeight) {
+      // Center using flexbox or margin auto
+      gridContainer.style.display = 'flex';
+      gridContainer.style.justifyContent = 'center';
+      gridContainer.style.alignItems = 'center';
+      gridContainer.scrollLeft = 0;
+      gridContainer.scrollTop = 0;
+    } else {
+      // Canvas is larger, use scroll positioning
+      gridContainer.style.display = 'block';
+      gridContainer.style.justifyContent = '';
+      gridContainer.style.alignItems = '';
+      
+      // Calculate scroll position to center the canvas
+      const scrollLeft = Math.max(0, (canvasWidth - containerWidth) / 2);
+      const scrollTop = Math.max(0, (canvasHeight - containerHeight) / 2);
+      
+      gridContainer.scrollLeft = scrollLeft;
+      gridContainer.scrollTop = scrollTop;
+    }
+  });
+}
+
+function applyZoom() {
+  if (!st.zoom) st.zoom = 1;
+  cvs.style.transform = `scale(${st.zoom})`;
+  cvs.style.transformOrigin = 'top left';
+  document.getElementById('zoomLevel').textContent = Math.round(st.zoom * 100) + '%';
+  sv();
+  centerCanvas();
+}
+
+function zoomIn() {
+  if (!st.zoom) st.zoom = 1;
+  st.zoom = Math.min(3, st.zoom + 0.25);
+  applyZoom();
+}
+
+function zoomOut() {
+  if (!st.zoom) st.zoom = 1;
+  st.zoom = Math.max(0.25, st.zoom - 0.25);
+  applyZoom();
+}
+
+function zoomReset() {
+  st.zoom = 1;
+  applyZoom();
+}
+
+document.getElementById('zoomInBtn').addEventListener('click', () => { plySnd('click'); zoomIn(); });
+document.getElementById('zoomOutBtn').addEventListener('click', () => { plySnd('click'); zoomOut(); });
+document.getElementById('zoomResetBtn').addEventListener('click', () => { plySnd('click'); zoomReset(); });
+
+const inpNm=document.getElementById('cityName');
+inpNm.addEventListener('focus', () => edtNm=true);
+inpNm.addEventListener('blur', () => { edtNm=false; st.cityName=inpNm.value||'new city'; sv(); updUI(); });
+inpNm.addEventListener('input', () => updInpWd());
+inpNm.addEventListener('change', e => { st.cityName=e.target.value||'new city'; sv(); });
+inpNm.addEventListener('click', e => e.target.select());
+
+document.getElementById('menuBtn').addEventListener('click', () => {
+  plySnd('click'); const m=document.getElementById('menu'); m.classList.toggle('hidden');
+  document.getElementById('newGamePanel').classList.add('hidden'); 
+  document.getElementById('infoPanel').classList.add('hidden');
+  currentInfoType = null;
+  setLandValueOverlay(false);
+  setCrimeOverlay(false);
+});
+
+document.getElementById('speedToggle').addEventListener('click', () => {
+  plySnd('click');
+  if (st.speed===0) st.speed=3000; else if (st.speed===3000) st.speed=1500; else if (st.speed===1500) st.speed=500; else st.speed=0;
+  sv(); if (tkTmr) clearInterval(tkTmr);
+  if (st.speed>0) { TK_INT=st.speed; tkTmr=setInterval(simTk,TK_INT); updNwsTk(); }
+  else updNwsTk();
+  updUI();
+});
+
+document.getElementById('newCityBtn').addEventListener('click', () => { plySnd('click'); document.getElementById('menu').classList.add('hidden'); document.getElementById('newGamePanel').classList.remove('hidden'); });
+
+document.getElementById('startGameBtn').addEventListener('click', () => {
+  plySnd('click');
+  const nm=document.getElementById('newCityName').value||'new city', tr=document.getElementById('terrainType').value, df=document.getElementById('difficulty').value;
+  let mn=50000; if (df==='easy') mn=100000; else if (df==='hard') mn=20000;
+  aiReq=false; initGr(tr); st.money=mn; st.population=0; st.happiness=70; st.tickCount=0; st.cityName=nm; st.rDemand=50; st.cDemand=50; st.iDemand=50; st.year=1990; st.newsEvents=['Welcome to '+nm+'!']; st.ticksSinceNews=0; st.employment=0;
+  if (!st.zoom) st.zoom=1;
+  drGr(); updUI(); updNwsTk(); sv();
+  document.getElementById('newGamePanel').classList.add('hidden');
+  document.getElementById('aiPanel').classList.add('hidden');
+  document.getElementById('infoPanel').classList.add('hidden');
+  currentInfoType = null;
+  setLandValueOverlay(false);
+  setCrimeOverlay(false);
+  setTimeout(centerCanvas, 100);
+});
+
+document.getElementById('aiSuggestBtn').addEventListener('click', async () => {
+  plySnd('click'); document.getElementById('menu').classList.add('hidden'); document.getElementById('infoPanel').classList.add('hidden');
+  currentInfoType = null;
+  setLandValueOverlay(false);
+  setCrimeOverlay(false);
+  const pnl=document.getElementById('aiPanel'), msg=document.getElementById('aiMessage');
+  pnl.classList.remove('hidden'); msg.innerHTML='<span class="text-neutral-500">thinking...</span>';
+  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
+  const prm=`You are an AI mayor advisor for a SimCity-like game. Analyze the current city state and give 2-3 SHORT, actionable suggestions (1-2 sentences total).\n\nCurrent city stats:\n- Money: $${st.money.toLocaleString()}\n- Population: ${st.population}\n- Happiness: ${st.happiness}/100\n- Buildings: ${JSON.stringify(cnts)}\n- RCI Demand: R=${st.rDemand}% C=${st.cDemand}% I=${st.iDemand}%\n\nAvailable building types: road, residential, commercial, industrial, park, police, fire, school, hospital\n\nGive practical advice based on what's missing or unbalanced. Keep it brief and conversational.`;
+  try {
+    const r=await fetch('/api/applet-ai', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prm})});
+    if (!r.ok) throw new Error('AI request failed');
+    const d=await r.json(), rp=d.reply||'everything looks good!';
+    msg.textContent=''; let i=0;
+    const tw=setInterval(() => { if (i<rp.length) { msg.textContent+=rp.charAt(i); i++; } else clearInterval(tw); },20);
+  } catch(e) { console.error('AI error:',e); msg.textContent='could not reach AI mayor. try building more infrastructure!'; }
+});
+
+document.getElementById('closeAiBtn').addEventListener('click', () => { plySnd('click'); document.getElementById('aiPanel').classList.add('hidden'); });
+document.getElementById('closeInfoBtn').addEventListener('click', () => {
+  plySnd('click');
+  document.getElementById('infoPanel').classList.add('hidden');
+  currentInfoType = null;
+  setLandValueOverlay(false);
+  setCrimeOverlay(false);
+});
+
+document.getElementById('rciBtn').addEventListener('click', () => {
+  shwInfo('RCI Demand', `<div><span class="text-green-500">Residential:</span> ${st.rDemand}%</div><div><span class="text-blue-500">Commercial:</span> ${st.cDemand}%</div><div><span class="text-yellow-500">Industrial:</span> ${st.iDemand}%</div><div class="mt-2 text-xs text-neutral-400">Higher demand means more zones needed</div>`, 'rci');
+});
+
+document.getElementById('popBtn').addEventListener('click', () => {
+  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
+  shwInfo('Population Stats', `<div>Total: ${st.population.toLocaleString()}</div><div>Residential zones: ${cnts.residential||0}</div><div>Employment: ${st.employment}%</div><div class="mt-2 text-xs text-neutral-400">Build more residential zones to grow</div>`, 'pop');
+});
+
+document.getElementById('moneyBtn').addEventListener('click', () => {
+  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
+  const inc=Math.floor(st.population*2), mnt=Math.floor(cnts.road*1+(cnts.residential||0)*2+(cnts.commercial||0)*3+(cnts.industrial||0)*5+(cnts.park||0)*2+(cnts.police||0)*10+(cnts.fire||0)*10+(cnts.school||0)*15+(cnts.hospital||0)*20);
+  shwInfo('Budget', `<div>Balance: $${st.money.toLocaleString()}</div><div class="text-green-500">Income: +$${inc}</div><div class="text-red-400">Expenses: -$${mnt}</div><div class="mt-2 text-xs text-neutral-400">Income from population taxes</div>`, 'money');
+});
+
+document.getElementById('happyBtn').addEventListener('click', () => {
+  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
+  let avgCrime=0;
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    avgCrime+=st.crime[y][x]||30;
+  }
+  avgCrime=Math.floor(avgCrime/(GR_SZ*GR_SZ));
+  shwInfo('Happiness', `<div>Level: ${st.happiness}/100</div><div class="mt-1">Parks: ${cnts.park||0}</div><div>Services: ${(cnts.police||0)+(cnts.fire||0)+(cnts.school||0)+(cnts.hospital||0)}</div><div class="mt-1">Avg Crime: ${avgCrime}%</div><div>Active Crimes: ${st.crimeEvents.length}</div><div class="mt-2 text-xs text-neutral-400">Build parks, services, and police to increase</div>`, 'happy');
+});
+
+function hasRdAcc(x,y) {
+  const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
+  for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+    const cx=x+dx, cy=y+dy;
+    for (let ndy=-1; ndy<=1; ndy++) for (let ndx=-1; ndx<=1; ndx++) {
+      if (ndx===0 && ndy===0) continue;
+      const nx=cx+ndx, ny=cy+ndy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) if (st.grid[ny][nx].type==='road') return true;
+    }
+  }
+  return false;
+}
+
+function calcLV(x,y) {
+  let v=50; const tr=st.terrain[y][x];
+  if (tr==='water') for (let dy=-2; dy<=2; dy++) for (let dx=-2; dx<=2; dx++) {
+    const nx=x+dx, ny=y+dy; if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) { const d=Math.abs(dx)+Math.abs(dy); if (d<=2) v+=(3-d)*5; }
+  }
+  let pk=0, pl=0, sv=0;
+  for (let dy=-3; dy<=3; dy++) for (let dx=-3; dx<=3; dx++) {
+    const nx=x+dx, ny=y+dy; if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+      const d=Math.abs(dx)+Math.abs(dy), c=st.grid[ny][nx];
+      if (c.type.startsWith('park')) { const m=(c.w||1)*(c.h||1); pk+=(7-d)*2*m; }
+      else if (c.type==='industrial') { const m=(c.w||1)*(c.h||1); pl+=(7-d)*2*m; }
+      else if (c.type==='police'||c.type==='fire'||c.type==='school'||c.type==='hospital') sv+=(7-d);
+    }
+  }
+  v+=Math.min(pk,30); v-=Math.min(pl,40); v+=Math.min(sv,20);
+  if (!hasRdAcc(x,y)) v-=30;
+  return Math.max(0,Math.min(100,v));
+}
+
+function calcCrime(x,y) {
+  let c=30; const tr=st.terrain[y][x];
+  if (tr==='water'||tr==='cliff') return 0;
+  
+  // Reduce crime near police stations (8-tile radius)
+  let policeCoverage=0;
+  for (let dy=-8; dy<=8; dy++) for (let dx=-8; dx<=8; dx++) {
+    const nx=x+dx, ny=y+dy; if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+      const d=Math.abs(dx)+Math.abs(dy), cell=st.grid[ny][nx];
+      if (cell.type==='police' && d<=8) {
+        policeCoverage+=(9-d)*3;
+      }
+    }
+  }
+  c-=Math.min(policeCoverage,50);
+  
+  // Increase crime in high-population areas without police coverage
+  const cell=st.grid[y][x];
+  if ((cell.type==='residential'||cell.type==='commercial') && !cell.abandoned) {
+    const popDensity=(cell.w||1)*(cell.h||1)*(cell.level||0);
+    if (policeCoverage<10) c+=popDensity*5;
+  }
+  
+  // Factor in happiness (low happiness = more crime)
+  if (st.happiness<50) c+=20;
+  else if (st.happiness<70) c+=10;
+  
+  // Increase crime if no road access
+  if (!hasRdAcc(x,y)) c+=15;
+  
+  // Check for active crime events nearby
+  for (const evt of st.crimeEvents) {
+    const dx=Math.abs(x-evt.x), dy=Math.abs(y-evt.y), d=dx+dy;
+    if (d<=3) c+=Math.max(0,(4-d)*10);
+  }
+  
+  return Math.max(0,Math.min(100,c));
+}
+
+function updLV() { for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) st.landValue[y][x]=calcLV(x,y); }
+function updCrime() { for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) st.crime[y][x]=calcCrime(x,y); }
+
+function calcDmd(rC,cC,iC,p) {
+  let rD=50, cD=50, iD=50; const tZ=rC+cC+iC;
+  if (tZ===0) { rD=80; cD=40; iD=40; }
+  else {
+    const iR={r:0.5,c:0.25,i:0.25}, aR={r:rC/tZ,c:cC/tZ,i:iC/tZ};
+    rD=Math.max(0,Math.min(100,50+(iR.r-aR.r)*200)); cD=Math.max(0,Math.min(100,50+(iR.c-aR.c)*200)); iD=Math.max(0,Math.min(100,50+(iR.i-aR.i)*200));
+    if (p>0) { const jA=cC*5+iC*8, jN=p*0.6; if (jA<jN) { cD=Math.min(100,cD+20); iD=Math.min(100,iD+20); } }
+    if (st.happiness<50) rD=Math.max(0,rD-20); else if (st.happiness>80) rD=Math.min(100,rD+10);
+  }
+  return {rDemand:rD,cDemand:cD,iDemand:iD};
+}
+
+async function genNws() {
+  if (aiReq) return; aiReq=true;
+  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
+  const ctx=`${st.cityName}, ${st.year}, pop ${st.population}, $${(st.money/1000).toFixed(0)}k, happiness ${st.happiness}, ${cnts.residential||0}R ${cnts.commercial||0}C ${cnts.industrial||0}I`;
+  const prm=`Generate ONE dramatic news headline (8 words max) for SimCity game. Context: ${ctx}. Topics: politics, pop culture, tech, disasters, economy, society. Include brief stat at end like (+200 pop) or (-$2k) or (+5 joy). Be punchy and dramatic. Return ONLY headline.`;
+  try {
+    const r=await fetch('/api/applet-ai', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prm})});
+    if (!r.ok) throw new Error('AI request failed');
+    const d=await r.json(); let ev=d.reply||'City continues to grow';
+    ev=ev.replace(/^["']|["']$/g,'').trim();
+    const m=ev.match(/\(([^)]+)\)/);
+    if (m) {
+      const ch=m[1];
+      if (ch.includes('pop')) { const vl=parseInt(ch.match(/-?\d+/)?.[0]||0); st.population=Math.max(0,st.population+vl); }
+      else if (ch.includes('$')||ch.includes('k')) { const vl=parseInt(ch.match(/-?\d+/)?.[0]||0), mt=ch.includes('k')?1000:1; st.money+=vl*mt; }
+      else if (ch.includes('joy')||ch.includes('happiness')) { const vl=parseInt(ch.match(/-?\d+/)?.[0]||0); st.happiness=Math.max(0,Math.min(100,st.happiness+vl)); }
+    }
+    st.newsEvents.push(ev); if (st.newsEvents.length>10) st.newsEvents.shift();
+    nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
+  } catch(e) { console.error('News generation error:',e); } finally { aiReq=false; }
+}
+
+function tryMrgPark(x,y) {
+  const c=st.grid[y][x]; if (!c||!c.type.startsWith('park')) return false;
+  
+  // Try to merge 2x1 tiles into 2x2
+  if (c.w===2&&c.h===1) {
+    // Check if there's a 2x1 tile directly above or below
+    const checkAbove=y>0;
+    const checkBelow=y+1<GR_SZ;
+    
+    if (checkAbove) {
+      const above=st.grid[y-1][x];
+      if (above.type===c.type&&above.w===2&&above.h===1&&st.grid[y-1][x+1].type===c.type) {
+        // Merge into 2x2
+        for (let dy=0; dy<2; dy++) for (let dx=0; dx<2; dx++) {
+          st.grid[y-1+dy][x+dx]={type:c.type,age:Math.max(st.grid[y-1+dy][x+dx].age,c.age),level:1,w:2,h:2};
+        }
+        return true;
+      }
+    }
+    
+    if (checkBelow) {
+      const below=st.grid[y+1][x];
+      if (below.type===c.type&&below.w===2&&below.h===1&&st.grid[y+1][x+1].type===c.type) {
+        // Merge into 2x2
+        for (let dy=0; dy<2; dy++) for (let dx=0; dx<2; dx++) {
+          st.grid[y+dy][x+dx]={type:c.type,age:Math.max(st.grid[y+dy][x+dx].age,c.age),level:1,w:2,h:2};
+        }
+        return true;
+      }
+    }
+  }
+  
+  // Try to merge 1x2 tiles into 2x2
+  if (c.w===1&&c.h===2) {
+    // Check if there's a 1x2 tile directly left or right
+    const checkLeft=x>0;
+    const checkRight=x+1<GR_SZ;
+    
+    if (checkLeft) {
+      const left=st.grid[y][x-1];
+      if (left.type===c.type&&left.w===1&&left.h===2&&st.grid[y+1][x-1].type===c.type) {
+        // Merge into 2x2
+        for (let dy=0; dy<2; dy++) for (let dx=0; dx<2; dx++) {
+          st.grid[y+dy][x-1+dx]={type:c.type,age:Math.max(st.grid[y+dy][x-1+dx].age,c.age),level:1,w:2,h:2};
+        }
+        return true;
+      }
+    }
+    
+    if (checkRight) {
+      const right=st.grid[y][x+1];
+      if (right.type===c.type&&right.w===1&&right.h===2&&st.grid[y+1][x+1].type===c.type) {
+        // Merge into 2x2
+        for (let dy=0; dy<2; dy++) for (let dx=0; dx<2; dx++) {
+          st.grid[y+dy][x+dx]={type:c.type,age:Math.max(st.grid[y+dy][x+dx].age,c.age),level:1,w:2,h:2};
+        }
+        return true;
+      }
+    }
+  }
+  
+  // Original logic: merge 1x1 tiles
+  if (c.w!==1||c.h!==1) return false;
+  
+  // Try to merge with adjacent parks of the same type
+  const dirs=[{dx:0,dy:0,w:2,h:2},{dx:-1,dy:0,w:2,h:1},{dx:0,dy:-1,w:1,h:2},{dx:-1,dy:-1,w:2,h:2},{dx:0,dy:0,w:2,h:1},{dx:0,dy:0,w:1,h:2}];
+  for (const d of dirs) {
+    const sx=x+d.dx, sy=y+d.dy;
+    if (sx<0||sy<0||sx+d.w>GR_SZ||sy+d.h>GR_SZ) continue;
+    
+    // Check if all cells in the area are the same park type and 1x1
+    let canMerge=true;
+    for (let dy=0; dy<d.h; dy++) for (let dx=0; dx<d.w; dx++) {
+      const nx=sx+dx, ny=sy+dy, nb=st.grid[ny][nx];
+      if (nb.type!==c.type||nb.w!==1||nb.h!==1) { canMerge=false; break; }
+    }
+    
+    if (canMerge) {
+      // Merge the parks
+      for (let dy=0; dy<d.h; dy++) for (let dx=0; dx<d.w; dx++) {
+        const nx=sx+dx, ny=sy+dy;
+        st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:d.w,h:d.h};
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+// Helper: ensure an existing multi-tile zone building does not extend outside a merge area
+function bldFitsInArea(nx,ny,ax,ay,aw,ah,zt) {
+  const c=st.grid[ny][nx];
+  if (!c || c.type!==zt) return true;
+  const w=c.w||1, h=c.h||1;
+  if (w===1 && h===1) return true;
+
+  // Find the top-left cell of this building (same pattern used elsewhere)
+  let sx=nx, sy=ny;
+  if (w>1 || h>1) {
+    for (let cx=nx-1; cx>=Math.max(0,nx-w+1); cx--) {
+      const cc=st.grid[ny][cx];
+      if (cc.type===c.type && (cc.w||1)===w && (cc.h||1)===h) sx=cx; else break;
+    }
+    for (let cy=ny-1; cy>=Math.max(0,ny-h+1); cy--) {
+      const cc=st.grid[cy][nx];
+      if (cc.type===c.type && (cc.w||1)===w && (cc.h||1)===h) sy=cy; else break;
+    }
+  }
+
+  const ex=sx+w-1, ey=sy+h-1;
+  if (sx<ax || sy<ay) return false;
+  if (ex>=ax+aw || ey>=ay+ah) return false;
+  return true;
+}
+
+// First step: merge 1x1 buildings to 2x1 or 1x2
+function tryMrgTo2x1(x,y) {
+  const c=st.grid[y][x]; if (!c) return false;
+  const isZ=c.type==='residential'||c.type==='commercial'||c.type==='industrial'; if (!isZ) return false;
+  
+  // Only merge 1x1 buildings
+  const w=c.w||1, h=c.h||1;
+  if (w!==1 || h!==1) return false;
+  
+  // Don't merge if level 0 and not abandoned (still developing)
+  if (c.level===0 && !c.abandoned) return false;
+  
+  const lv=st.landValue[y][x], hvc=lv>70?0.5:(lv>50?0.3:0.05), shM=Math.random()<hvc; if (!shM) return false;
+  
+  // Try to merge to 2x1 (horizontal) first, then 1x2 (vertical)
+  const targets=[
+    {w:2, h:1, dx:1, dy:0}, // Merge right to form 2x1
+    {w:1, h:2, dx:0, dy:1}  // Merge down to form 1x2
+  ];
+  
+  for (const target of targets) {
+    const sx=x, sy=y;
+    // Calculate the adjacent cell position
+    const adjX=sx+target.dx, adjY=sy+target.dy;
+    
+    // Check bounds
+    if (adjX<0 || adjX>=GR_SZ || adjY<0 || adjY>=GR_SZ) continue;
+    
+    // Explicitly check for roads in the target area before merging
+    let hasRoad=false;
+    for (let dy=0; dy<target.h; dy++) {
+      for (let dx=0; dx<target.w; dx++) {
+        const checkX=sx+dx, checkY=sy+dy;
+        if (checkX>=0 && checkX<GR_SZ && checkY>=0 && checkY<GR_SZ) {
+          const checkCell=st.grid[checkY][checkX];
+          // Prevent merging through roads
+          if (checkCell.type==='road') {
+            hasRoad=true;
+            break;
+          }
+        }
+      }
+      if (hasRoad) break;
+    }
+    
+    // Skip this target if there's a road in the area
+    if (hasRoad) continue;
+
+    // Prevent merging if this 2x1/1x2 footprint would partially overwrite
+    // an existing larger building of the same zone type
+    let overlapsExisting=false;
+    for (let dy=0; dy<target.h && !overlapsExisting; dy++) {
+      for (let dx=0; dx<target.w; dx++) {
+        const checkX=sx+dx, checkY=sy+dy;
+        if (checkX<0 || checkX>=GR_SZ || checkY<0 || checkY>=GR_SZ) continue;
+        const checkCell=st.grid[checkY][checkX];
+        if (checkCell.type===c.type) {
+          if (!bldFitsInArea(checkX,checkY,sx,sy,target.w,target.h,c.type)) {
+            overlapsExisting=true;
+            break;
+          }
+        }
+      }
+    }
+    if (overlapsExisting) continue;
+    
+    if (!canPlLg(sx,sy,target.w,target.h,c.type)) continue;
+    
+    // Check if adjacent cell is compatible
+    const adj=st.grid[adjY][adjX];
+    if (adj.type!==c.type && adj.type!=='empty' && !adj.abandoned) continue;
+    
+    // Check if adjacent cell is 1x1
+    const adjw=adj.w||1, adjh=adj.h||1;
+    if (adjw!==1 || adjh!==1) continue;
+    
+    // Determine level (prioritize empty > l0 > l1)
+    let bestLevel=c.level||0;
+    let bestAge=c.age||0;
+    if (adj.type==='empty') {
+      bestLevel=0;
+    } else if (adj.type===c.type) {
+      bestLevel=Math.min(bestLevel, adj.level||0);
+      bestAge=Math.max(bestAge, adj.age||0);
+    }
+    
+    // Merge to 2x1 or 1x2
+    for (let dy=0; dy<target.h; dy++) {
+      for (let dx=0; dx<target.w; dx++) {
+        const nx=sx+dx, ny=sy+dy;
+        st.grid[ny][nx]={type:c.type,age:bestAge,level:bestLevel,w:target.w,h:target.h,abandoned:c.abandoned||adj.abandoned};
+      }
+    }
+    
+    // Ensure any empty cells nearby are normalized to 1x1
+    for (let checkY=Math.max(0,sy-1); checkY<=Math.min(GR_SZ-1,sy+target.h+1); checkY++) {
+      for (let checkX=Math.max(0,sx-1); checkX<=Math.min(GR_SZ-1,sx+target.w+1); checkX++) {
+        const checkCell=st.grid[checkY][checkX];
+        if (checkCell.type==='empty') {
+          normalizeEmptyCell(checkX,checkY);
+        }
+      }
+    }
+    
+    return true;
+  }
+  
+  return false;
+}
+
+function tryMrg(x,y) {
+  const c=st.grid[y][x]; if (!c) return false;
+  const isZ=c.type==='residential'||c.type==='commercial'||c.type==='industrial'; if (!isZ) return false;
+  
+  // Only merge buildings that are 1x2 or 2x1 (not 1x1 - those merge to 2x1/1x2 first)
+  const w=c.w||1, h=c.h||1;
+  if (!((w===1&&h===2) || (w===2&&h===1))) return false;
+  
+  // Don't merge if level 0 and not abandoned (still developing)
+  if (c.level===0 && !c.abandoned) return false;
+  
+  const lv=st.landValue[y][x], hvc=lv>70?0.6:(lv>50?0.4:0.1), shM=Math.random()<hvc; if (!shM) return false;
+  
+  // Only try to merge to 2x2
+  const targetW=2, targetH=2;
+  
+  // Try different starting positions to form a 2x2
+  const startPositions=[
+    {dx:0,dy:0},  // Current position is top-left
+    {dx:-1,dy:0}, // Current position is top-right
+    {dx:0,dy:-1}, // Current position is bottom-left
+    {dx:-1,dy:-1} // Current position is bottom-right
+  ];
+  
+  for (const startPos of startPositions) {
+    const sx=x+startPos.dx, sy=y+startPos.dy;
+    if (sx<0||sy<0||sx+targetW>GR_SZ||sy+targetH>GR_SZ) continue;
+    
+    // Explicitly check for roads in the 2x2 target area before merging
+    let hasRoad=false;
+    for (let dy=0; dy<targetH; dy++) {
+      for (let dx=0; dx<targetW; dx++) {
+        const checkX=sx+dx, checkY=sy+dy;
+        if (checkX>=0 && checkX<GR_SZ && checkY>=0 && checkY<GR_SZ) {
+          const checkCell=st.grid[checkY][checkX];
+          // Prevent merging through roads
+          if (checkCell.type==='road') {
+            hasRoad=true;
+            break;
+          }
+        }
+      }
+      if (hasRoad) break;
+    }
+    
+    // Skip this position if there's a road in the area
+    if (hasRoad) continue;
+
+    // Prevent merging if this 2x2 footprint would partially overwrite
+    // an existing larger building of the same zone type
+    let overlapsExisting=false;
+    for (let dy=0; dy<targetH && !overlapsExisting; dy++) {
+      for (let dx=0; dx<targetW; dx++) {
+        const checkX=sx+dx, checkY=sy+dy;
+        if (checkX<0 || checkX>=GR_SZ || checkY<0 || checkY>=GR_SZ) continue;
+        const checkCell=st.grid[checkY][checkX];
+        if (checkCell.type===c.type) {
+          if (!bldFitsInArea(checkX,checkY,sx,sy,targetW,targetH,c.type)) {
+            overlapsExisting=true;
+            break;
+          }
+        }
+      }
+    }
+    if (overlapsExisting) continue;
+
+    if (!canPlLg(sx,sy,targetW,targetH,c.type)) continue;
+    
+    // Collect all cells in the 2x2 area
+    const cells=[];
+    const processedBuildings=new Set(); // Track buildings we've already processed
+    const buildingSizes=[]; // Track sizes of buildings found
+    let canMerge=true;
+    for (let dy=0; dy<targetH; dy++) {
+      for (let dx=0; dx<targetW; dx++) {
+        const nx=sx+dx, ny=sy+dy;
+        const nb=st.grid[ny][nx];
+        const nbw=nb.w||1, nbh=nb.h||1;
+        
+        // For merged buildings, only process the top-left cell
+        // Check if this cell is the top-left of a merged building
+        let isTopLeft=true;
+        if (nbw>1 || nbh>1) {
+          // Check if there's a cell to the left or above with the same building data
+          if (dx>0 && ny>=0 && ny<GR_SZ && nx-1>=0 && nx-1<GR_SZ) {
+            const leftCell=st.grid[ny][nx-1];
+            if (leftCell.type===nb.type && (leftCell.w||1)===nbw && (leftCell.h||1)===nbh) {
+              isTopLeft=false; // This is not the top-left
+            }
+          }
+          if (dy>0 && ny-1>=0 && ny-1<GR_SZ && nx>=0 && nx<GR_SZ) {
+            const aboveCell=st.grid[ny-1][nx];
+            if (aboveCell.type===nb.type && (aboveCell.w||1)===nbw && (aboveCell.h||1)===nbh) {
+              isTopLeft=false; // This is not the top-left
+            }
+          }
+        }
+        
+        // Skip if this is not the top-left of a merged building
+        if (!isTopLeft) continue;
+        
+        // Create a key for this building
+        const buildingKey=`${nx},${ny},${nb.type},${nbw},${nbh}`;
+        if (processedBuildings.has(buildingKey)) continue;
+        processedBuildings.add(buildingKey);
+        
+        // Track building size for later check
+        buildingSizes.push({w:nbw, h:nbh});
+        
+        // Check if cell is compatible (same type, empty, or abandoned)
+        if (nb.type!==c.type && nb.type!=='empty' && !nb.abandoned) {
+          canMerge=false;
+          break;
+        }
+        
+        // Check if cell is compatible size (must be 1x1, 1x2, or 2x1, or empty)
+        // If it's already 2x2, we can't merge (already merged)
+        if (nbw===2 && nbh===2) {
+          canMerge=false;
+          break;
+        }
+        // If it's a larger building (bigger than 2x2), we can't merge
+        if (nbw>2 || nbh>2) {
+          canMerge=false;
+          break;
+        }
+        // For 1x2 or 2x1 buildings, check if they fit within our 2x2 area
+        // The building's extent must be within [sx, sx+targetW) and [sy, sy+targetH)
+        if (nbw>1 || nbh>1) {
+          // Check if building extends beyond our target area
+          if (nx+nbw>sx+targetW || ny+nbh>sy+targetH || nx<sx || ny<sy) {
+            canMerge=false;
+            break;
+          }
+        }
+        
+        // Add all cells of this building to our collection
+        for (let bdy=0; bdy<nbh; bdy++) {
+          for (let bdx=0; bdx<nbw; bdx++) {
+            const bx=nx+bdx, by=ny+bdy;
+            if (bx>=sx && bx<sx+targetW && by>=sy && by<sy+targetH) {
+              cells.push({x:bx, y:by, cell:st.grid[by][bx]});
+            }
+          }
+        }
+      }
+      if (!canMerge) break;
+    }
+    
+    // Deduplicate cells (in case a building spans multiple cells we're adding)
+    const uniqueCells=[];
+    const cellKeys=new Set();
+    for (const cellInfo of cells) {
+      const key=`${cellInfo.x},${cellInfo.y}`;
+      if (!cellKeys.has(key)) {
+        cellKeys.add(key);
+        uniqueCells.push(cellInfo);
+      }
+    }
+    
+    // Make sure we have exactly 4 cells (2x2)
+    if (uniqueCells.length!==4) {
+      canMerge=false;
+    }
+    
+    // CRITICAL: Only merge to 2x2 if at least one building is already 2x1 or 1x2
+    // Check if we have at least one 2x1 or 1x2 building in the area
+    let has2x1Or1x2=false;
+    for (const size of buildingSizes) {
+      if ((size.w===2 && size.h===1) || (size.w===1 && size.h===2)) {
+        has2x1Or1x2=true;
+        break;
+      }
+    }
+    
+    if (!has2x1Or1x2) {
+      canMerge=false;
+    }
+    
+    if (!canMerge) continue;
+    
+    // Use the deduplicated cells (replace the original cells array)
+    cells.length=0;
+    cells.push(...uniqueCells);
+    
+    // Sort cells by priority: empty > l0 > l1 > l2 > l3
+    // For merging, we want to favor empty > l0 > l1
+    cells.sort((a, b) => {
+      const aCell=a.cell, bCell=b.cell;
+      
+      // Empty cells have highest priority
+      if (aCell.type==='empty' && bCell.type!=='empty') return -1;
+      if (bCell.type==='empty' && aCell.type!=='empty') return 1;
+      
+      // If both are same type, prioritize by level (lower level = higher priority for merging)
+      if (aCell.type===c.type && bCell.type===c.type) {
+        const aLevel=aCell.level||0, bLevel=bCell.level||0;
+        // Empty > l0 > l1
+        if (aLevel===0 && bLevel>0) return -1;
+        if (bLevel===0 && aLevel>0) return 1;
+        if (aLevel===1 && bLevel>1) return -1;
+        if (bLevel===1 && aLevel>1) return 1;
+        return aLevel-bLevel;
+      }
+      
+      return 0;
+    });
+    
+    // Determine the best level to use (prioritize empty > l0 > l1)
+    // Priority: empty zones become l0, then favor l0 over l1, l1 over l2, etc.
+    let bestLevel=null;
+    let bestAge=0;
+    let hasEmpty=false;
+    let isAbandoned=false;
+    const levelsFound=[];
+    
+    for (const cellInfo of cells) {
+      const cell=cellInfo.cell;
+      if (cell.type==='empty') {
+        hasEmpty=true;
+        // Empty zones become level 0 when merged
+        if (bestLevel===null || bestLevel>0) bestLevel=0;
+      } else if (cell.type===c.type) {
+        const cellLevel=cell.level||0;
+        levelsFound.push(cellLevel);
+        bestAge=Math.max(bestAge, cell.age||0);
+        // If any cell is abandoned, the merged building is abandoned
+        if (cell.abandoned) isAbandoned=true;
+      }
+    }
+    
+    // If we have empty cells, prioritize level 0
+    if (hasEmpty) {
+      bestLevel=0;
+    } else if (bestLevel===null && levelsFound.length>0) {
+      // No empty cells - use the lowest level found (prioritize l0 > l1 > l2 > l3)
+      bestLevel=Math.min(...levelsFound);
+    } else {
+      bestLevel=c.level||0;
+    }
+    
+    // Merge all cells to 2x2
+    for (const cellInfo of cells) {
+      const nx=cellInfo.x, ny=cellInfo.y;
+      st.grid[ny][nx]={type:c.type,age:bestAge,level:bestLevel,w:targetW,h:targetH,abandoned:isAbandoned};
+    }
+    
+    // Ensure any empty cells outside the merged area are normalized to 1x1
+    // Check surrounding cells that might have been affected
+    for (let checkY=Math.max(0,y-1); checkY<=Math.min(GR_SZ-1,y+3); checkY++) {
+      for (let checkX=Math.max(0,x-1); checkX<=Math.min(GR_SZ-1,x+3); checkX++) {
+        const checkCell=st.grid[checkY][checkX];
+        if (checkCell.type==='empty') {
+          normalizeEmptyCell(checkX,checkY);
+        }
+      }
+    }
+    
+    return true;
+  }
+  
+  return false;
+}
+
+function updFires() {
+  st.fires=st.fires.filter(f => {
+    f.age++; if (f.age>30) { 
+      st.grid[f.y][f.x]={type:'empty',age:0,level:0,w:1,h:1}; 
+      normalizeEmptyCell(f.x,f.y); // Ensure it's 1x1
+      return false; 
+    }
+    const c=st.grid[f.y][f.x]; if (c.type==='empty') return false;
+    let hasFr=false; for (let dy=-3; dy<=3; dy++) for (let dx=-3; dx<=3; dx++) {
+      const nx=f.x+dx, ny=f.y+dy; if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) if (st.grid[ny][nx].type==='fire') hasFr=true;
+    }
+    if (hasFr && f.age>10) return false; return true;
+  });
+}
+
+function startFire() {
+  const blds=[]; for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x]; if ((c.type==='residential'||c.type==='commercial'||c.type==='industrial') && !c.abandoned) blds.push({x,y});
+  }
+  if (blds.length>0) {
+    const b=blds[Math.floor(Math.random()*blds.length)]; st.fires.push({x:b.x,y:b.y,age:0});
+    st.newsEvents.push(`🔥 Fire breaks out in ${st.cityName}! (-$5k)`); st.money-=5000;
+    nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
+  }
+}
+
+function startQuake() {
+  const gr=document.getElementById('grid'); gr.classList.add('earthquake');
+  setTimeout(() => gr.classList.remove('earthquake'),500);
+  const blds=[]; 
+  const processedBuildings=new Set(); // Track buildings we've already added
+  
+  // Collect buildings, but only add the top-left cell of each building
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const c=st.grid[y][x]; 
+      if (c.type==='empty' || c.type==='road') continue;
+      
+      const w=c.w||1, h=c.h||1;
+      // Only add the top-left cell of each building to avoid duplicates
+      // Check if this is the top-left cell
+      let isTopLeft=true;
+      if (w>1 || h>1) {
+        // Check if there's a cell to the left or above with the same building
+        if (x>0) {
+          const leftCell=st.grid[y][x-1];
+          if (leftCell.type===c.type && (leftCell.w||1)===w && (leftCell.h||1)===h) {
+            isTopLeft=false;
+          }
+        }
+        if (y>0) {
+          const aboveCell=st.grid[y-1][x];
+          if (aboveCell.type===c.type && (aboveCell.w||1)===w && (aboveCell.h||1)===h) {
+            isTopLeft=false;
+          }
+        }
+      }
+      
+      if (isTopLeft) {
+        // Ensure this building's footprint does not include any roads (which can happen
+        // with older saves or after complex merges next to roads)
+        let hasRoadInFootprint=false;
+        for (let dy=0; dy<h && !hasRoadInFootprint; dy++) {
+          for (let dx=0; dx<w; dx++) {
+            const nx=x+dx, ny=y+dy;
+            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+              if (st.grid[ny][nx].type==='road') {
+                hasRoadInFootprint=true;
+                break;
+              }
+            }
+          }
+        }
+        if (hasRoadInFootprint) continue;
+
+        const buildingKey=`${x},${y},${c.type},${w},${h}`;
+        if (!processedBuildings.has(buildingKey)) {
+          processedBuildings.add(buildingKey);
+          blds.push({x,y,w,h});
+        }
+      }
+    }
+  }
+  
+  const dmg=Math.min(5,Math.floor(blds.length*0.1));
+  for (let i=0; i<dmg; i++) {
+    if (blds.length>0) {
+      const b=blds.splice(Math.floor(Math.random()*blds.length),1)[0];
+      // Destroy all cells that are part of this building
+      const w=b.w||1, h=b.h||1;
+      for (let dy=0; dy<h; dy++) {
+        for (let dx=0; dx<w; dx++) {
+          const nx=b.x+dx, ny=b.y+dy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            // Only destroy if it's not a road
+            if (st.grid[ny][nx].type!=='road') {
+              st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1};
+              normalizeEmptyCell(nx,ny); // Ensure it's 1x1
+            }
+          }
+        }
+      }
+    }
+  }
+  st.newsEvents.push(`🌎 Earthquake hits ${st.cityName}! ${dmg} buildings damaged (-$10k)`); st.money-=10000;
+  nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
+}
+
+function updCrimeEvents() {
+  st.crimeEvents=st.crimeEvents.filter(evt => {
+    evt.age++;
+    // Check if police station is nearby (within 8 tiles) - resolves faster
+    let hasPolice=false;
+    for (let dy=-8; dy<=8; dy++) for (let dx=-8; dx<=8; dx++) {
+      const nx=evt.x+dx, ny=evt.y+dy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+        if (st.grid[ny][nx].type==='police') {
+          const d=Math.abs(dx)+Math.abs(dy);
+          if (d<=8) { hasPolice=true; break; }
+        }
+      }
+    }
+    // Crime events last 20 ticks normally, but only 10 ticks if police nearby
+    const maxAge=hasPolice?10:20;
+    if (evt.age>maxAge) return false;
+    return true;
+  });
+}
+
+function startCrimeEvent() {
+  const blds=[];
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    // Higher crime areas are more likely to have crime events
+    const crimeLevel=st.crime[y][x]||30;
+    if ((c.type==='residential'||c.type==='commercial') && !c.abandoned && crimeLevel>40) {
+      // Weight by crime level - higher crime = more likely
+      for (let i=0; i<Math.floor(crimeLevel/20); i++) blds.push({x,y,crimeLevel});
+    }
+  }
+  if (blds.length>0) {
+    const b=blds[Math.floor(Math.random()*blds.length)];
+    const crimeTypes=['robbery','break-in','vandalism'];
+    const crimeType=crimeTypes[Math.floor(Math.random()*crimeTypes.length)];
+    st.crimeEvents.push({x:b.x,y:b.y,type:crimeType,age:0});
+    const cost=Math.floor(Math.random()*3000)+2000;
+    st.money-=cost;
+    const msg=crimeType==='robbery'?`🚨 Robbery reported in ${st.cityName}! (-$${(cost/1000).toFixed(0)}k)`:
+           crimeType==='break-in'?`🚨 Break-in reported in ${st.cityName}! (-$${(cost/1000).toFixed(0)}k)`:
+           `🚨 Vandalism reported in ${st.cityName}! (-$${(cost/1000).toFixed(0)}k)`;
+    st.newsEvents.push(msg);
+    nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
+  }
+}
+
+function simTk() {
+  st.tickCount++; st.ticksSinceNews++;
+  if (st.tickCount%8===0) st.year++;
+  let rC=0, cC=0, iC=0, pC=0, poC=0, fC=0, sC=0, hC=0, rdC=0; const cntd={};
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const k=`${x},${y}`; if (cntd[k]) continue;
+    const c=st.grid[y][x]; 
+    // Normalize empty cells to ensure they're always 1x1
+    if (c.type==='empty') normalizeEmptyCell(x,y);
+    if (c.type!=='empty') {
+      c.age++; const w=c.w||1, h=c.h||1;
+      for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) cntd[`${x+dx},${y+dy}`]=true;
+    }
+    if (c.type==='residential') rC++; else if (c.type==='commercial') cC++; else if (c.type==='industrial') iC++;
+    else if (c.type.startsWith('park')) pC++; else if (c.type==='police') poC++; else if (c.type==='fire') fC++;
+    else if (c.type==='school') sC++; else if (c.type==='hospital') hC++; else if (c.type==='road') rdC++;
+  }
+  updLV();
+  updCrime();
+  // Track processed buildings to avoid duplicate updates for merged buildings
+  const processedBuildings = new Set();
+  const processedCells = new Set(); // Track individual cells that have been processed
+  
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type==='residential'||c.type==='commercial'||c.type==='industrial') {
+      // Skip if this cell has already been processed (e.g., as part of a merged building)
+      const cellKey = `${x},${y}`;
+      if (processedCells.has(cellKey)) continue;
+      
+      const w=c.w||1, h=c.h||1;
+      // Only process the top-left cell of each building
+      let isTopLeft=true;
+      if (w>1 || h>1) {
+        // Check if there's a cell to the left or above with the same building
+        if (x>0) {
+          const leftCell=st.grid[y][x-1];
+          if (leftCell.type===c.type && (leftCell.w||1)===w && (leftCell.h||1)===h) {
+            isTopLeft=false;
+          }
+        }
+        if (y>0) {
+          const aboveCell=st.grid[y-1][x];
+          if (aboveCell.type===c.type && (aboveCell.w||1)===w && (aboveCell.h||1)===h) {
+            isTopLeft=false;
+          }
+        }
+      }
+      
+      if (!isTopLeft) continue;
+      
+      // Skip if this building has already been processed
+      const buildingKey = `${x},${y},${c.type},${w},${h}`;
+      if (processedBuildings.has(buildingKey)) continue;
+      processedBuildings.add(buildingKey);
+      
+      // Mark all cells of this building as processed
+      for (let dy=0; dy<h; dy++) {
+        for (let dx=0; dx<w; dx++) {
+          const nx=x+dx, ny=y+dy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            processedCells.add(`${nx},${ny}`);
+          }
+        }
+      }
+      
+      const lv=st.landValue[y][x], hr=hasRdAcc(x,y), mv=c.type==='industrial'?10:20;
+      
+      // Track ticks without road access
+      if (!hr) {
+        c.ticksNoRoad = (c.ticksNoRoad || 0) + 1;
+      } else {
+        c.ticksNoRoad = 0;
+      }
+      
+      // Immediate abandonment if land value too low
+      if (lv<mv) { 
+        c.abandoned=true;
+        // Keep level but mark as abandoned - don't set to 0
+        // Update all cells of merged building
+        const w=c.w||1, h=c.h||1;
+        for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+          if (x+dx<GR_SZ && y+dy<GR_SZ) {
+            st.grid[y+dy][x+dx].abandoned=true;
+          }
+        }
+      }
+      // Gradual decline without road access
+      else if (!hr) {
+        // Downgrade every 3 ticks without road
+        if (c.ticksNoRoad > 3 && c.level > 1) {
+          c.level--;
+          c.ticksNoRoad = 0; // Reset counter after downgrade
+          // Update all cells of merged building
+          for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+            if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=c.level;
+          }
+        }
+        // Become abandoned after being at level 1 for 5 ticks without road
+        else if (c.ticksNoRoad > 5 && c.level >= 1) {
+          c.abandoned = true;
+          // Keep the level, just mark as abandoned
+          for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+            if (x+dx<GR_SZ && y+dy<GR_SZ) {
+              st.grid[y+dy][x+dx].abandoned=true;
+            }
+          }
+        }
+        // Immediately abandon if no road for 10+ ticks
+        else if (c.ticksNoRoad > 10) {
+          c.abandoned = true;
+          // Keep the level, just mark as abandoned
+          const w=c.w||1, h=c.h||1;
+          for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+            if (x+dx<GR_SZ && y+dy<GR_SZ) {
+              st.grid[y+dy][x+dx].abandoned=true;
+            }
+          }
+        }
+      }
+      else {
+        c.abandoned=false;
+        // Update all cells of merged building to un-abandon
+        for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+          if (x+dx<GR_SZ && y+dy<GR_SZ) {
+            st.grid[y+dy][x+dx].abandoned=false;
+          }
+        }
+        
+        // Check for downgrades first (more important)
+        let downgraded = false;
+        if (lv<30 && c.level>1) { 
+          const newLevel = Math.max(1,c.level-1);
+          c.level = newLevel;
+          downgraded = true;
+          // Update all cells of merged building
+          for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+            if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=newLevel;
+          }
+        }
+        else if (lv>=30 && lv<40 && c.level===3) { 
+          c.level=2; 
+          downgraded = true;
+          // Update all cells of merged building
+          for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+            if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=2;
+          }
+        }
+        
+          // Upgrade logic - only if not downgraded, gradual one level at a time
+          // Slowed down upgrades: require more age and better conditions
+          if (!downgraded) {
+            let upgraded = false;
+            // Level 0 -> 1: needs age > 10 ticks (was 5)
+            if (c.level===0 && c.age>10) {
+              c.level=1;
+              upgraded = true;
+            }
+            // Level 1 -> 2: needs age > 30 AND land value > 55 (was 15 and 50)
+            else if (c.level===1 && c.age>30 && lv>55) {
+              c.level=2;
+              upgraded = true;
+            }
+            // Level 2 -> 3: needs age > 50 AND land value > 75 (was 25 and 70)
+            else if (c.level===2 && c.age>50 && lv>75) {
+              c.level=3;
+              upgraded = true;
+            }
+          
+          // Update all cells of merged building if upgraded
+          if (upgraded) {
+            for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+              if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=c.level;
+            }
+          }
+        }
+        
+        // Two-step merging process:
+        // Step 1: Try to merge 1x1 buildings to 2x1 or 1x2 first
+        if (c.age>8 && w===1 && h===1 && c.level>0) {
+          const merged=tryMrgTo2x1(x,y);
+          if (merged) {
+            // Mark all cells of the newly merged building as processed
+            // The merged building is now 2x1 or 1x2, so we need to update processedCells
+            // But we don't know which direction it merged, so we'll let the next iteration handle it
+            // For now, just mark the current cell as processed
+            processedCells.add(`${x},${y}`);
+            if (x+1<GR_SZ) processedCells.add(`${x+1},${y}`); // If merged right (2x1)
+            if (y+1<GR_SZ) processedCells.add(`${x},${y+1}`); // If merged down (1x2)
+          }
+        }
+        // Step 2: Try to merge 2x1 or 1x2 buildings to 2x2 (only if at least one is 2x1/1x2)
+        if (c.age>12 && ((w===1&&h===2) || (w===2&&h===1)) && c.level>0) {
+          // Only try merge if this is the top-left cell of the building
+          // For 1x2: always top-left (spans down)
+          // For 2x1: always top-left (spans right)
+          const merged=tryMrg(x,y);
+          if (merged) {
+            // Mark all cells of the newly merged 2x2 building as processed
+            // After merge, the grid has been updated with a 2x2 building
+            // Check the current cell and nearby cells to find the 2x2 building's top-left
+            let found2x2=false;
+            for (let checkY=Math.max(0,y-1); checkY<=Math.min(GR_SZ-2,y+1) && !found2x2; checkY++) {
+              for (let checkX=Math.max(0,x-1); checkX<=Math.min(GR_SZ-2,x+1) && !found2x2; checkX++) {
+                const checkCell=st.grid[checkY][checkX];
+                if (checkCell.type===c.type && (checkCell.w||1)===2 && (checkCell.h||1)===2) {
+                  // This is the top-left of the merged 2x2 building
+                  // Mark all 4 cells as processed
+                  for (let dy=0; dy<2; dy++) {
+                    for (let dx=0; dx<2; dx++) {
+                      const nx=checkX+dx, ny=checkY+dy;
+                      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                        processedCells.add(`${nx},${ny}`);
+                      }
+                    }
+                  }
+                  found2x2=true;
+                }
+              }
+            }
+          }
+        }
+      }
+    } else if (c.type.startsWith('park')) {
+      // Try to merge parks of the same type
+      tryMrgPark(x,y);
+    }
+  }
+  const bPR=10; let nP=0;
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type==='residential' && hasRdAcc(x,y) && !c.abandoned) {
+      const sM=(c.w||1)*(c.h||1), lM=c.level===3?1.5:(c.level===2?1.2:1);
+      nP+=Math.floor(bPR*sM*lM);
+    }
+  }
+  st.population=nP;
+  const jA=cC*5+iC*8, jN=nP*0.6;
+  if (jA<=0 || jN<=0) st.employment=0;
+  else st.employment=Math.min(100,Math.floor((Math.min(jA,jN)/jN)*100));
+  const inc=Math.floor(st.population*2), mnt=Math.floor(rdC*1+rC*2+cC*3+iC*5+pC*2+poC*10+fC*10+sC*15+hC*20);
+  st.money+=inc-mnt;
+  let hp=70;
+  if (st.population>0) {
+    const pR=pC/(rC+1); hp+=Math.min(pR*50,15);
+    const sR=(poC+fC+sC+hC)/(st.population/100+1); hp+=Math.min(sR*20,10);
+    const jR=(cC+iC)/(rC+1); if (jR<0.5) hp-=10; else if (jR>2) hp-=5;
+    if (st.money<0) hp-=15;
+    // Factor in crime - calculate average city crime
+    let avgCrime=0;
+    for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+      avgCrime+=st.crime[y][x]||30;
+    }
+    avgCrime=avgCrime/(GR_SZ*GR_SZ);
+    // High crime reduces happiness (up to -15 points)
+    if (avgCrime>60) hp-=Math.min(15,Math.floor((avgCrime-60)/2));
+    else if (avgCrime>40) hp-=Math.min(8,Math.floor((avgCrime-40)/3));
+    // Police coverage improves happiness
+    if (poC>0 && st.population>0) {
+      const policeRatio=poC/(st.population/500+1);
+      hp+=Math.min(5,policeRatio*2);
+    }
+  }
+  st.happiness=Math.max(0,Math.min(100,Math.floor(hp)));
+  const dmd=calcDmd(rC,cC,iC,st.population); st.rDemand=Math.floor(dmd.rDemand); st.cDemand=Math.floor(dmd.cDemand); st.iDemand=Math.floor(dmd.iDemand);
+  const tB=rC+cC+iC+pC+poC+fC+sC+hC;
+  if (st.ticksSinceNews>=8 && tB>5 && !aiReq) { st.ticksSinceNews=0; genNws(); }
+  if (Math.random()<0.02 && tB>10) startFire();
+  if (Math.random()<0.01 && tB>20) startQuake();
+  if (Math.random()<0.02 && st.population>50) startCrimeEvent();
+  updFires(); updCrimeEvents(); drGr(); updUI(); sv();
+}
+
+const aC=new (window.AudioContext||window.webkitAudioContext)();
+function plySnd(t) {
+  const n=aC.currentTime;
+  if (t==='place') { const o=aC.createOscillator(), g=aC.createGain(); o.type='sine'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(800,n); g.gain.setValueAtTime(0.1,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.1); o.start(n); o.stop(n+0.1); }
+  else if (t==='bulldoze') { const o=aC.createOscillator(), g=aC.createGain(); o.type='sawtooth'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(200,n); g.gain.setValueAtTime(0.15,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.15); o.start(n); o.stop(n+0.15); }
+  else if (t==='click') { const o=aC.createOscillator(), g=aC.createGain(); o.type='sine'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(600,n); g.gain.setValueAtTime(0.08,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.05); o.start(n); o.stop(n+0.05); }
+  else if (t==='error') { const o=aC.createOscillator(), g=aC.createGain(); o.type='square'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(300,n); o.frequency.setValueAtTime(200,n+0.1); g.gain.setValueAtTime(0.1,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.2); o.start(n); o.stop(n+0.2); }
+}
+
+if (!ld()) { initGr('balanced'); st.newsEvents=['Welcome to '+st.cityName+'!']; }
+if (!st.zoom) st.zoom=1;
+applyZoom();
+drGr(); updUI(); updNwsTk(); selTl('road');
+if (st.speed>0) { TK_INT=st.speed; tkTmr=setInterval(simTk,TK_INT); }
+
+// Center canvas after page is fully loaded
+window.addEventListener('load', () => {
+  setTimeout(centerCanvas, 100);
+});
+
+// Re-center canvas when window is resized
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(centerCanvas, 100);
+});
+
+setInterval(() => { if (st.speed>0) { updCars(); drGr(); } },50);
+</script>
+</body>
+</html>
