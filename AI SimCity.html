@@ -484,43 +484,43 @@ function drTl(x,y,tp,lv,ab,w,h) {
       const squareX = px + (wd - squareSize) / 2;
       const squareY = py + (ht - squareSize) / 2;
       ctx.fillRect(squareX, squareY, squareSize, squareSize); 
-    }
-    else if (ab) { 
-      ctx.fillStyle='#4a4a4a'; 
-      const bw=wd-4, bh=ht-4; 
-      ctx.fillRect(px+2,py+4,bw,bh); 
-      ctx.fillStyle='#3a3a3a'; 
-      ctx.fillRect(px+2,py+4,bw,Math.floor(bh*0.25)); 
-      ctx.fillStyle='#2a2a2a'; 
-      ctx.fillRect(px+4,py+Math.floor(4+bh*0.4),3,3); 
-      ctx.fillRect(px+9,py+Math.floor(4+bh*0.4),3,3); 
-      if (w===2) ctx.fillRect(px+20,py+Math.floor(4+bh*0.4),3,3); 
-    }
-    else {
-      // For 2x2 buildings, grow taller with level
-      const bh=w===2&&h===2?(lv===3?ht-1:(lv===2?ht-2:ht-3)):w===2||h===2?ht-3:(lv===1?9:(lv===2?11:13));
-      const yo=w===2&&h===2?(lv===3?1:(lv===2?1.5:2)):w===2||h===2?2:(lv===1?4:(lv===2?2:1));
-      ctx.fillStyle=w===2&&h===2?(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')):w===2||h===2?'#2563eb':(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')); 
-      ctx.fillRect(px+2,py+yo+1,wd-4,bh);
-      ctx.fillStyle=w===2&&h===2?(lv===3?'#2563eb':(lv===2?'#1e40af':'#1e40af')):w===2||h===2?'#1e40af':(lv===3?'#2563eb':'#1e40af'); 
-      ctx.fillRect(px+2,py+yo+1,wd-4,Math.floor(bh*0.25));
-      ctx.fillStyle='#87ceeb';
-      const wh=3, ww=3;
-      const floors=w===2&&h===2?(lv===3?5:(lv===2?4:3)):w===2&&h===1?1:(w===2||h===2?2:1);
-      const winStart=w===2&&h===2?0.35:0.4;
-      for (let f=0; f<floors; f++) {
-        const wy = py+Math.floor((yo+1)+bh*winStart)+(f*5);
-        ctx.fillRect(px+4,wy,ww,wh); 
-        ctx.fillRect(px+9,wy,ww,wh);
-        if (w===2) { 
-          ctx.fillRect(px+20,wy,ww,wh); 
-          ctx.fillRect(px+25,wy,ww,wh); 
-        }
       }
-      ctx.fillStyle='#1e3a8a'; 
-      ctx.fillRect(px+6,py+ht-4,4,4); 
-      if (w===2) ctx.fillRect(px+22,py+ht-4,4,4);
-    }
+      else if (ab) { 
+        ctx.fillStyle='#4a4a4a'; 
+        const bw=wd-4, bh=ht-4; 
+        ctx.fillRect(px+2,py+4,bw,bh); 
+        ctx.fillStyle='#3a3a3a'; 
+        ctx.fillRect(px+2,py+4,bw,Math.floor(bh*0.25)); 
+        ctx.fillStyle='#2a2a2a'; 
+        ctx.fillRect(px+4,py+Math.floor(4+bh*0.4),3,3); 
+        ctx.fillRect(px+9,py+Math.floor(4+bh*0.4),3,3); 
+        if (w===2) ctx.fillRect(px+20,py+Math.floor(4+bh*0.4),3,3); 
+      }
+      else {
+        // For 2x2 buildings, grow taller with level
+        const bh=w===2&&h===2?(lv===3?ht-1:(lv===2?ht-2:ht-3)):w===2||h===2?ht-3:(lv===1?9:(lv===2?11:13));
+        const yo=w===2&&h===2?(lv===3?1:(lv===2?1.5:2)):w===2||h===2?2:(lv===1?4:(lv===2?2:1));
+        ctx.fillStyle=w===2&&h===2?(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')):w===2||h===2?'#2563eb':(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')); 
+        ctx.fillRect(px+2,py+yo+1,wd-4,bh);
+        ctx.fillStyle=w===2&&h===2?(lv===3?'#2563eb':(lv===2?'#1e40af':'#1e40af')):w===2||h===2?'#1e40af':(lv===3?'#2563eb':'#1e40af'); 
+        ctx.fillRect(px+2,py+yo+1,wd-4,Math.floor(bh*0.25));
+        ctx.fillStyle='#87ceeb';
+        const wh=3, ww=3;
+        const floors=w===2&&h===2?(lv===3?3:(lv===2?4:3)):w===2&&h===1?1:(w===2||h===2?2:1);
+        const winStart=w===2&&h===2?0.35:0.4;
+        for (let f=0; f<floors; f++) {
+          const wy = py+Math.floor((yo+1)+bh*winStart)+(f*5);
+          ctx.fillRect(px+4,wy,ww,wh); 
+          ctx.fillRect(px+9,wy,ww,wh);
+          if (w===2) { 
+            ctx.fillRect(px+20,wy,ww,wh); 
+            ctx.fillRect(px+25,wy,ww,wh); 
+          }
+        }
+        ctx.fillStyle='#1e3a8a'; 
+        ctx.fillRect(px+6,py+ht-4,4,4); 
+        if (w===2) ctx.fillRect(px+22,py+ht-4,4,4);
+      }
   } else if (tp==='industrial') {
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
     if (lv===0) { 
