@@ -141,18 +141,31 @@
   </div>
 
   <div id="menu" class="hidden border-b border-neutral-700 bg-neutral-800 p-3 flex-shrink-0">
-    <div class="space-y-2">
-      <button id="aiSuggestBtn" class="w-full text-left px-3 py-2 border border-yellow-600 text-yellow-500 rounded text-sm hover:bg-yellow-900/20 transition-colors flex items-center gap-2">
-        <span>ask AI mayor for advice</span>
-      </button>
-      <button id="newCityBtn" class="w-full text-left px-3 py-2 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors">
-        new city
-      </button>
-      <div class="flex items-center gap-1">
-        <button id="zoomOutBtn" class="w-8 h-8 aspect-square border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors flex items-center justify-center">−</button>
-        <div id="zoomLevel" class="text-xs text-neutral-300 tabular-nums px-2">100%</div>
-        <button id="zoomInBtn" class="w-8 h-8 aspect-square border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors flex items-center justify-center">+</button>
-        <button id="zoomResetBtn" class="px-2 h-8 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors text-xs">reset</button>
+    <div class="space-y-3">
+      <div class="flex items-start gap-3">
+        <div class="space-y-2 flex-1">
+          <div class="text-xs text-neutral-500 tracking-wider px-1">view</div>
+          <div class="flex items-center gap-1">
+            <button id="zoomOutBtn" class="w-8 h-8 aspect-square border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors flex items-center justify-center">−</button>
+            <div id="zoomLevel" class="text-xs text-neutral-300 tabular-nums px-2">100%</div>
+            <button id="zoomInBtn" class="w-8 h-8 aspect-square border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors flex items-center justify-center">+</button>
+          </div>
+        </div>
+        <div class="space-y-2 flex-1">
+          <div class="text-xs text-neutral-500 tracking-wider px-1">settings</div>
+          <label class="flex items-center gap-2 px-3 py-2 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors cursor-pointer">
+            <input id="disastersToggle" type="checkbox" checked class="w-4 h-4 accent-green-600">
+            <span>disasters</span>
+          </label>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="aiSuggestBtn" class="flex-1 text-left px-3 py-2 border border-yellow-600 text-yellow-500 rounded text-sm hover:bg-yellow-900/20 transition-colors flex items-center gap-2">
+          <span>ask AI mayor for advice</span>
+        </button>
+        <button id="newCityBtn" class="flex-1 text-left px-3 py-2 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors">
+          new city
+        </button>
       </div>
     </div>
   </div>
@@ -161,7 +174,7 @@
     <div class="max-w-md mx-auto space-y-3">
       <div>
         <label class="text-xs text-neutral-400 block mb-1">city name</label>
-        <input id="newCityName" type="text" value="new city" class="w-full bg-neutral-700 border border-neutral-600 text-neutral-200 px-3 py-2 rounded text-sm outline-none focus:border-neutral-500">
+        <input id="newCityName" type="text" value="" placeholder="new city" class="w-full bg-neutral-700 border border-neutral-600 text-neutral-200 px-3 py-2 rounded text-sm outline-none focus:border-neutral-500">
       </div>
       <div>
         <label class="text-xs text-neutral-400 block mb-1">terrain type</label>
@@ -265,7 +278,7 @@ const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,
 const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
 const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
 
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1};
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1,disastersEnabled:true};
 let showLandValueOverlay = false;
 let showCrimeOverlay = false;
 
@@ -356,6 +369,7 @@ function ld() {
         if (!st.crime) { st.crime=[]; for (let y=0; y<GR_SZ; y++) { const cr=[]; for (let x=0; x<GR_SZ; x++) cr.push(30); st.crime.push(cr); } }
         if (!st.fires) st.fires=[]; if (!st.employment) st.employment=0; if (!st.cars) st.cars=[]; if (!st.crimeEvents) st.crimeEvents=[];
         if (!st.zoom) st.zoom=1;
+        if (st.disastersEnabled === undefined) st.disastersEnabled = true;
         for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) { 
           if (!st.grid[y][x].level) st.grid[y][x].level=0; 
           if (!st.grid[y][x].w) st.grid[y][x].w=1; 
@@ -788,6 +802,17 @@ function findPath(sx,sy,ex,ey) {
   }
   return null;
 }
+  
+function getEdgeDirection(structCell,roadCell) {
+  if (!structCell || !roadCell) return {x:0,y:0};
+  const dx=structCell.x-roadCell.x;
+  const dy=structCell.y-roadCell.y;
+  if (dx===0 && dy===0) return {x:0,y:0};
+  if (Math.abs(dx)>Math.abs(dy)) return {x:dx>0?1:-1,y:0};
+  if (Math.abs(dy)>Math.abs(dx)) return {x:0,y:dy>0?1:-1};
+  if (dx!==0) return {x:dx>0?1:-1,y:0};
+  return {x:0,y:dy>0?1:-1};
+}
 
 function spawnCar() {
   const res=[], com=[], ind=[], pol=[], fir=[];
@@ -846,85 +871,175 @@ function spawnCar() {
   const path=findPath(start.x,start.y,end.x,end.y);
   if (!path || path.length<2) return;
   
-  // Determine direction: randomly choose forward or reverse
-  const reverse=Math.random()<0.5;
-  const carPath=reverse ? [...path].reverse() : path;
-  
-  // Determine lane offset based on first segment direction
-  // Cars going in opposite directions should be in opposite lanes
-  let laneOffset=0;
-  let startX=carPath[0].x*CL_SZ+7;
-  let startY=carPath[0].y*CL_SZ+7;
-  
-  if (carPath.length>=2) {
-    const dx=carPath[1].x-carPath[0].x;
-    const dy=carPath[1].y-carPath[0].y;
+    // Determine direction: randomly choose forward or reverse
+    const reverse=Math.random()<0.5;
+    const carPath=reverse ? [...path].reverse() : path;
+    const spawnRoad=reverse ? end : start;
+    const exitRoad=reverse ? start : end;
+    const spawnBuilding=reverse ? dst : src;
+    const exitBuilding=reverse ? src : dst;
     
-    if (Math.abs(dx)>Math.abs(dy)) {
-      // Horizontal movement: use y offset for lanes
-      // Left-to-right (dx > 0): bottom lane (+5)
-      // Right-to-left (dx < 0): top lane (-5)
-      laneOffset=dx>0 ? 5 : -5;
-      startY+=laneOffset;
-    } else {
-      // Vertical movement: use x offset for lanes
-      // Top-to-bottom (dy > 0): right lane (+5)
-      // Bottom-to-top (dy < 0): left lane (-5)
-      laneOffset=dy>0 ? 5 : -5;
-      startX+=laneOffset;
-    }
-  }
-  
-  st.cars.push({
-    x:startX,
-    y:startY,
-    path:carPath,
-    pathIdx:0,
-    color:clr,
-    type:tp,
-    laneOffset:laneOffset,
-    reverse:reverse
-  });
-}
-
-function updCars() {
-  st.cars=st.cars.filter(c => {
-    if (c.pathIdx>=c.path.length-1) return false;
+    // Determine lane offset based on first segment direction
+    // Cars going in opposite directions should be in opposite lanes
+    let laneOffset=0;
+    const startCenterX=carPath[0].x*CL_SZ+7;
+    const startCenterY=carPath[0].y*CL_SZ+7;
+    let startX=startCenterX;
+    let startY=startCenterY;
     
-    let remainingDist=getCarSpeedPerFrame();
-    if (remainingDist<=0) return true;
-    
-    while (remainingDist>0) {
-      if (c.pathIdx>=c.path.length-1) return false;
-      const {tx,ty}=getCarSegmentTarget(c);
-      const dx=tx-c.x, dy=ty-c.y;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if (dist===0) {
-        c.pathIdx++;
-        if (c.pathIdx>=c.path.length-1) return false;
-        updateCarLaneOffset(c);
-        continue;
-      }
-      const step=Math.min(dist,remainingDist);
-      c.x+=dx/dist*step;
-      c.y+=dy/dist*step;
-      remainingDist-=step;
-      if (step===dist) {
-        c.pathIdx++;
-        if (c.pathIdx>=c.path.length-1) return false;
-        updateCarLaneOffset(c);
+    if (carPath.length>=2) {
+      const dx=carPath[1].x-carPath[0].x;
+      const dy=carPath[1].y-carPath[0].y;
+      
+      if (Math.abs(dx)>Math.abs(dy)) {
+        // Horizontal movement: use y offset for lanes
+        // Left-to-right (dx > 0): bottom lane (+5)
+        // Right-to-left (dx < 0): top lane (-5)
+        laneOffset=dx>0 ? 5 : -5;
+        startY+=laneOffset;
       } else {
-        break;
+        // Vertical movement: use x offset for lanes
+        // Ensure right-hand traffic: southbound (dy > 0) stays to the viewer's left (laneOffset = -5)
+        laneOffset=dy>0 ? -5 : 5;
+        startX+=laneOffset;
       }
     }
-    return true;
-  });
-  
-  const maxCars=Math.min(30,Math.floor(st.population/20));
-  if (st.speed>0 && st.population>10 && st.cars.length<maxCars && Math.random()<0.05) {
-    spawnCar();
-  }
+    
+    const entryDir=getEdgeDirection(spawnBuilding,spawnRoad);
+    let entryTarget=null;
+    let entering=false;
+    let spawnX=startX;
+    let spawnY=startY;
+    if (entryDir.x!==0 || entryDir.y!==0) {
+      entering=true;
+      entryTarget={x:startX,y:startY};
+      if (Math.abs(entryDir.x)>=Math.abs(entryDir.y) && entryDir.x!==0) {
+        spawnX=startCenterX+entryDir.x*CAR_EDGE_OFFSET;
+        spawnY=startY;
+      } else if (entryDir.y!==0) {
+        spawnY=startCenterY+entryDir.y*CAR_EDGE_OFFSET;
+        spawnX=startX;
+      }
+    }
+    
+    const endIdx=carPath.length-1;
+    const endNode=carPath[endIdx];
+    const endCenterX=endNode.x*CL_SZ+7;
+    const endCenterY=endNode.y*CL_SZ+7;
+    let exitLaneX=endCenterX;
+    let exitLaneY=endCenterY;
+    if (carPath.length>=2) {
+      const dxLast=carPath[endIdx].x-carPath[endIdx-1].x;
+      const dyLast=carPath[endIdx].y-carPath[endIdx-1].y;
+      if (Math.abs(dxLast)>Math.abs(dyLast)) {
+        exitLaneY+=dxLast>0 ? 5 : -5;
+      } else {
+        exitLaneX+=dyLast>0 ? -5 : 5;
+      }
+    }
+    const exitDir=getEdgeDirection(exitBuilding,exitRoad);
+    let exitTarget=null;
+    if (exitDir.x!==0 || exitDir.y!==0) {
+      exitTarget={x:exitLaneX,y:exitLaneY};
+      if (Math.abs(exitDir.x)>=Math.abs(exitDir.y) && exitDir.x!==0) {
+        exitTarget.x=endCenterX+exitDir.x*CAR_EDGE_OFFSET;
+      } else if (exitDir.y!==0) {
+        exitTarget.y=endCenterY+exitDir.y*CAR_EDGE_OFFSET;
+      }
+    }
+    
+    st.cars.push({
+      x:spawnX,
+      y:spawnY,
+      path:carPath,
+      pathIdx:0,
+      color:clr,
+      type:tp,
+      laneOffset:laneOffset,
+      reverse:reverse,
+      entering:entering,
+      entryTarget:entryTarget,
+      exiting:false,
+      exitTarget:exitTarget
+    });
 }
+  
+  function updCars() {
+    st.cars=st.cars.filter(c => {
+      let remainingDist=getCarSpeedPerFrame();
+      if (remainingDist<=0) return true;
+      
+      while (remainingDist>0) {
+        let targetStage='path';
+        let tx,ty;
+        if (c.entering && c.entryTarget) {
+          targetStage='entry';
+          tx=c.entryTarget.x;
+          ty=c.entryTarget.y;
+        } else if (c.exiting && c.exitTarget) {
+          targetStage='exit';
+          tx=c.exitTarget.x;
+          ty=c.exitTarget.y;
+        } else {
+          if (c.pathIdx>=c.path.length-1) {
+            if (c.exitTarget) {
+              c.exiting=true;
+              continue;
+            }
+            return false;
+          }
+          const nextTarget=getCarSegmentTarget(c);
+          tx=nextTarget.tx;
+          ty=nextTarget.ty;
+        }
+        
+        const dx=tx-c.x, dy=ty-c.y;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if (dist===0) {
+          if (targetStage==='entry') {
+            c.entering=false;
+            c.entryTarget=null;
+            continue;
+          }
+          if (targetStage==='exit') return false;
+          c.pathIdx++;
+          if (c.pathIdx>=c.path.length-1) {
+            if (c.exitTarget) {
+              c.exiting=true;
+              continue;
+            }
+            return false;
+          }
+          updateCarLaneOffset(c);
+          continue;
+        }
+        
+        const step=Math.min(dist,remainingDist);
+        c.x+=dx/dist*step;
+        c.y+=dy/dist*step;
+        remainingDist-=step;
+        if (step===dist) {
+          continue;
+        } else {
+          break;
+        }
+      }
+      return true;
+    });
+    
+    const maxCars=Math.min(60,Math.floor(st.population/18)+8);
+    const populationFactor=Math.min(1,st.population/4000);
+    const totalDemand=
+      Math.max(0,(st.rDemand||0))+
+      Math.max(0,(st.cDemand||0))+
+      Math.max(0,(st.iDemand||0));
+    const demandFactor=Math.min(1,totalDemand/400);
+    const spawnChance=Math.min(0.25,0.02+0.1*populationFactor+0.08*demandFactor);
+    if (st.speed>0 && st.population>10 && st.cars.length<maxCars && Math.random()<spawnChance) {
+      spawnCar();
+      if (st.cars.length<maxCars && Math.random()<0.15) spawnCar();
+    }
+  }
 
 function updInpWd() {
   const inp=document.getElementById('cityName'), tmp=document.createElement('span');
@@ -1194,6 +1309,7 @@ function getCarSpeedMultiplier() {
 }
 
 const CAR_BASE_SPEED = 1.0;
+const CAR_EDGE_OFFSET = CL_SZ/2 - 1;
 
 function getCarSpeedPerFrame() {
   return CAR_BASE_SPEED * getCarSpeedMultiplier();
@@ -1205,11 +1321,11 @@ function updateCarLaneOffset(car) {
   const nextNode=car.path[car.pathIdx+1];
   const dxSeg=nextNode.x-curNode.x;
   const dySeg=nextNode.y-curNode.y;
-  if (Math.abs(dxSeg)>Math.abs(dySeg)) {
-    car.laneOffset=dxSeg>0 ? 5 : -5;
-  } else {
-    car.laneOffset=dySeg>0 ? 5 : -5;
-  }
+    if (Math.abs(dxSeg)>Math.abs(dySeg)) {
+      car.laneOffset=dxSeg>0 ? 5 : -5;
+    } else {
+      car.laneOffset=dySeg>0 ? -5 : 5;
+    }
 }
 
 function getCarSegmentTarget(car) {
@@ -1219,8 +1335,24 @@ function getCarSegmentTarget(car) {
   let ty=nextNode.y*CL_SZ+7;
   const dxSeg=nextNode.x-curNode.x;
   const dySeg=nextNode.y-curNode.y;
-  if (Math.abs(dxSeg)>Math.abs(dySeg)) ty+=car.laneOffset;
-  else tx+=car.laneOffset;
+    const horizontal=Math.abs(dxSeg)>Math.abs(dySeg);
+    if (horizontal) ty+=car.laneOffset;
+    else tx+=car.laneOffset;
+    
+    const hasNextTurn=car.pathIdx+2<car.path.length;
+    if (hasNextTurn) {
+      const afterNode=car.path[car.pathIdx+2];
+      const dxNext=afterNode.x-nextNode.x;
+      const dyNext=afterNode.y-nextNode.y;
+      const nextHorizontal=Math.abs(dxNext)>Math.abs(dyNext);
+      if (horizontal && !nextHorizontal) {
+        const nextLaneOffset=dyNext>0 ? -5 : 5;
+        tx+=nextLaneOffset;
+      } else if (!horizontal && nextHorizontal) {
+        const nextLaneOffset=dxNext>0 ? 5 : -5;
+        ty+=nextLaneOffset;
+      }
+    }
   return {tx,ty};
 }
 
@@ -1593,7 +1725,6 @@ function zoomReset() {
 
 document.getElementById('zoomInBtn').addEventListener('click', () => { plySnd('click'); zoomIn(); });
 document.getElementById('zoomOutBtn').addEventListener('click', () => { plySnd('click'); zoomOut(); });
-document.getElementById('zoomResetBtn').addEventListener('click', () => { plySnd('click'); zoomReset(); });
 
 const inpNm=document.getElementById('cityName');
 inpNm.addEventListener('focus', () => edtNm=true);
@@ -1620,7 +1751,12 @@ document.getElementById('speedToggle').addEventListener('click', () => {
   updUI();
 });
 
-document.getElementById('newCityBtn').addEventListener('click', () => { plySnd('click'); document.getElementById('menu').classList.add('hidden'); document.getElementById('newGamePanel').classList.remove('hidden'); });
+document.getElementById('newCityBtn').addEventListener('click', () => { 
+  plySnd('click'); 
+  document.getElementById('newCityName').value = '';
+  document.getElementById('menu').classList.add('hidden'); 
+  document.getElementById('newGamePanel').classList.remove('hidden'); 
+});
 
 document.getElementById('startGameBtn').addEventListener('click', () => {
   plySnd('click');
@@ -1920,138 +2056,46 @@ function tryMrgPark(x,y) {
   return false;
 }
 
-// Helper: ensure an existing multi-tile zone building does not extend outside a merge area
-function bldFitsInArea(nx,ny,ax,ay,aw,ah,zt) {
-  const c=st.grid[ny][nx];
-  if (!c || c.type!==zt) return true;
-  const w=c.w||1, h=c.h||1;
-  if (w===1 && h===1) return true;
-
-  // Find the top-left cell of this building (same pattern used elsewhere)
-  let sx=nx, sy=ny;
-  if (w>1 || h>1) {
-    for (let cx=nx-1; cx>=Math.max(0,nx-w+1); cx--) {
-      const cc=st.grid[ny][cx];
-      if (cc.type===c.type && (cc.w||1)===w && (cc.h||1)===h) sx=cx; else break;
-    }
-    for (let cy=ny-1; cy>=Math.max(0,ny-h+1); cy--) {
-      const cc=st.grid[cy][nx];
-      if (cc.type===c.type && (cc.w||1)===w && (cc.h||1)===h) sy=cy; else break;
-    }
-  }
-
-  const ex=sx+w-1, ey=sy+h-1;
-  if (sx<ax || sy<ay) return false;
-  if (ex>=ax+aw || ey>=ay+ah) return false;
-  return true;
-}
-
 // First step: merge 1x1 buildings to 2x1 or 1x2
 function tryMrgTo2x1(x,y) {
   const c=st.grid[y][x]; if (!c) return false;
   const isZ=c.type==='residential'||c.type==='commercial'||c.type==='industrial'; if (!isZ) return false;
   
-  // Only merge 1x1 buildings
+  // Only merge mature 1x1 buildings
   const w=c.w||1, h=c.h||1;
   if (w!==1 || h!==1) return false;
+  if (c.level<=0 || c.abandoned) return false;
   
-  // Don't merge if level 0 and not abandoned (still developing)
-  if (c.level===0 && !c.abandoned) return false;
-  
-  const lv=st.landValue[y][x], hvc=lv>70?0.5:(lv>50?0.3:0.05), shM=Math.random()<hvc; if (!shM) return false;
-  
-  // Try to merge to 2x1 (horizontal) first, then 1x2 (vertical)
   const targets=[
-    {w:2, h:1, dx:1, dy:0}, // Merge right to form 2x1
-    {w:1, h:2, dx:0, dy:1}  // Merge down to form 1x2
+    {dx:1, dy:0, w:2, h:1}, // Merge to the right (2x1)
+    {dx:0, dy:1, w:1, h:2}  // Merge downward (1x2)
   ];
   
   for (const target of targets) {
-    const sx=x, sy=y;
-    // Calculate the adjacent cell position
-    const adjX=sx+target.dx, adjY=sy+target.dy;
-    
-    // Check bounds
-    if (adjX<0 || adjX>=GR_SZ || adjY<0 || adjY>=GR_SZ) continue;
-    
-    // Explicitly check for roads in the target area before merging
-    let hasRoad=false;
-    for (let dy=0; dy<target.h; dy++) {
-      for (let dx=0; dx<target.w; dx++) {
-        const checkX=sx+dx, checkY=sy+dy;
-        if (checkX>=0 && checkX<GR_SZ && checkY>=0 && checkY<GR_SZ) {
-          const checkCell=st.grid[checkY][checkX];
-          // Prevent merging through roads
-          if (checkCell.type==='road') {
-            hasRoad=true;
-            break;
-          }
-        }
-      }
-      if (hasRoad) break;
-    }
-    
-    // Skip this target if there's a road in the area
-    if (hasRoad) continue;
-
-    // Prevent merging if this 2x1/1x2 footprint would partially overwrite
-    // an existing larger building of the same zone type
-    let overlapsExisting=false;
-    for (let dy=0; dy<target.h && !overlapsExisting; dy++) {
-      for (let dx=0; dx<target.w; dx++) {
-        const checkX=sx+dx, checkY=sy+dy;
-        if (checkX<0 || checkX>=GR_SZ || checkY<0 || checkY>=GR_SZ) continue;
-        const checkCell=st.grid[checkY][checkX];
-        if (checkCell.type===c.type) {
-          if (!bldFitsInArea(checkX,checkY,sx,sy,target.w,target.h,c.type)) {
-            overlapsExisting=true;
-            break;
-          }
-        }
-      }
-    }
-    if (overlapsExisting) continue;
-    
-    if (!canPlLg(sx,sy,target.w,target.h,c.type)) continue;
-    
-    // Check if adjacent cell is compatible
+    const adjX=x+target.dx, adjY=y+target.dy;
+    if (adjX<0||adjX>=GR_SZ||adjY<0||adjY>=GR_SZ) continue;
     const adj=st.grid[adjY][adjX];
-    if (adj.type!==c.type && adj.type!=='empty' && !adj.abandoned) continue;
+    if (!adj) continue;
+    if (adj.type!==c.type) continue;
+    if ((adj.w||1)!==1 || (adj.h||1)!==1) continue;
     
-    // Check if adjacent cell is 1x1
-    const adjw=adj.w||1, adjh=adj.h||1;
-    if (adjw!==1 || adjh!==1) continue;
+    const adjLevel=adj.level||0;
+    if (adjLevel<=0 && !adj.abandoned) continue; // keep level-0 zones 1x1
     
-    // Determine level (prioritize empty > l0 > l1)
-    let bestLevel=c.level||0;
-    let bestAge=c.age||0;
-    if (adj.type==='empty') {
-      bestLevel=0;
-    } else if (adj.type===c.type) {
-      bestLevel=Math.min(bestLevel, adj.level||0);
-      bestAge=Math.max(bestAge, adj.age||0);
-    }
+    const topLeftX=Math.min(x,adjX);
+    const topLeftY=Math.min(y,adjY);
+    const bestAge=Math.max(c.age||0,adj.age||0);
+    const bestLevel=Math.max(1,Math.min(c.level||1,adj.level||c.level||1));
+    const isAbandoned=c.abandoned && adj.abandoned;
     
-    // Merge to 2x1 or 1x2 - ensure all cells are within bounds
     for (let dy=0; dy<target.h; dy++) {
       for (let dx=0; dx<target.w; dx++) {
-        const nx=sx+dx, ny=sy+dy;
+        const nx=topLeftX+dx, ny=topLeftY+dy;
         if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-          st.grid[ny][nx]={type:c.type,age:bestAge,level:bestLevel,w:target.w,h:target.h,abandoned:c.abandoned||adj.abandoned};
+          st.grid[ny][nx]={type:c.type,age:bestAge,level:bestLevel,w:target.w,h:target.h,abandoned:isAbandoned};
         }
       }
     }
-    
-    // Ensure any empty cells nearby are normalized to 1x1
-    for (let checkY=Math.max(0,sy-1); checkY<=Math.min(GR_SZ-1,sy+target.h+1); checkY++) {
-      for (let checkX=Math.max(0,sx-1); checkX<=Math.min(GR_SZ-1,sx+target.w+1); checkX++) {
-        const checkCell=st.grid[checkY][checkX];
-        if (checkCell.type==='empty') {
-          normalizeEmptyCell(checkX,checkY);
-        }
-      }
-    }
-    
     return true;
   }
   
@@ -2062,268 +2106,49 @@ function tryMrg(x,y) {
   const c=st.grid[y][x]; if (!c) return false;
   const isZ=c.type==='residential'||c.type==='commercial'||c.type==='industrial'; if (!isZ) return false;
   
-  // Only merge buildings that are 1x2 or 2x1 (not 1x1 - those merge to 2x1/1x2 first)
+  // Only merge buildings that are 1x2 or 2x1 (not 1x1 - those merge first)
   const w=c.w||1, h=c.h||1;
   if (!((w===1&&h===2) || (w===2&&h===1))) return false;
   if (!isTopLeftCell(x,y)) return false;
+  if (c.level<=0 || c.abandoned) return false;
   
-  // Don't merge if level 0 and not abandoned (still developing)
-  if (c.level===0 && !c.abandoned) return false;
+  const baseLevel=Math.max(1,c.level||1);
+  const baseAge=c.age||0;
+  const expansions=[];
   
-  const lv=st.landValue[y][x], hvc=lv>70?0.6:(lv>50?0.4:0.1), shM=Math.random()<hvc; if (!shM) return false;
+  if (w===2 && h===1) {
+    if (y>0) expansions.push({topLeftX:x, topLeftY:y-1, fillCells:[{x:x,y:y-1},{x:x+1,y:y-1}]});
+    if (y+1<GR_SZ) expansions.push({topLeftX:x, topLeftY:y, fillCells:[{x:x,y:y+1},{x:x+1,y:y+1}]});
+  } else if (w===1 && h===2) {
+    if (x>0) expansions.push({topLeftX:x-1, topLeftY:y, fillCells:[{x:x-1,y:y},{x:x-1,y:y+1}]});
+    if (x+1<GR_SZ) expansions.push({topLeftX:x, topLeftY:y, fillCells:[{x:x+1,y:y},{x:x+1,y:y+1}]});
+  }
   
-  // Only try to merge to 2x2
-  const targetW=2, targetH=2;
-  
-  // Try different starting positions to form a 2x2
-  const startPositions=[
-    {dx:0,dy:0},  // Current position is top-left
-    {dx:-1,dy:0}, // Current position is top-right
-    {dx:0,dy:-1}, // Current position is bottom-left
-    {dx:-1,dy:-1} // Current position is bottom-right
-  ];
-  
-  for (const startPos of startPositions) {
-    const sx=x+startPos.dx, sy=y+startPos.dy;
-    if (sx<0||sy<0||sx+targetW>GR_SZ||sy+targetH>GR_SZ) continue;
+  for (const option of expansions) {
+    const {topLeftX, topLeftY, fillCells}=option;
+    if (topLeftX<0 || topLeftY<0 || topLeftX+1>=GR_SZ || topLeftY+1>=GR_SZ) continue;
     
-    // Explicitly check for roads in the 2x2 target area before merging
-    let hasRoad=false;
-    for (let dy=0; dy<targetH; dy++) {
-      for (let dx=0; dx<targetW; dx++) {
-        const checkX=sx+dx, checkY=sy+dy;
-        if (checkX>=0 && checkX<GR_SZ && checkY>=0 && checkY<GR_SZ) {
-          const checkCell=st.grid[checkY][checkX];
-          // Prevent merging through roads
-          if (checkCell.type==='road') {
-            hasRoad=true;
-            break;
-          }
-        }
-      }
-      if (hasRoad) break;
+    let canExpand=true;
+    let mergedAge=baseAge;
+    for (const pos of fillCells) {
+      if (pos.x<0 || pos.x>=GR_SZ || pos.y<0 || pos.y>=GR_SZ) { canExpand=false; break; }
+      const target=st.grid[pos.y][pos.x];
+      if (!target) { canExpand=false; break; }
+      if (target.type!==c.type) { canExpand=false; break; }
+      if ((target.w||1)!==1 || (target.h||1)!==1) { canExpand=false; break; }
+      const targetLevel=target.level||0;
+      if (targetLevel>0 && !target.abandoned) { canExpand=false; break; }
+      mergedAge=Math.max(mergedAge,target.age||0);
     }
     
-    // Skip this position if there's a road in the area
-    if (hasRoad) continue;
-
-    // Prevent merging if this 2x2 footprint would partially overwrite
-    // an existing larger building of the same zone type
-    let overlapsExisting=false;
-    for (let dy=0; dy<targetH && !overlapsExisting; dy++) {
-      for (let dx=0; dx<targetW; dx++) {
-        const checkX=sx+dx, checkY=sy+dy;
-        if (checkX<0 || checkX>=GR_SZ || checkY<0 || checkY>=GR_SZ) continue;
-        const checkCell=st.grid[checkY][checkX];
-        if (checkCell.type===c.type) {
-          if (!bldFitsInArea(checkX,checkY,sx,sy,targetW,targetH,c.type)) {
-            overlapsExisting=true;
-            break;
-          }
-        }
+    if (!canExpand) continue;
+    
+    for (let dy=0; dy<2; dy++) {
+      for (let dx=0; dx<2; dx++) {
+        const nx=topLeftX+dx, ny=topLeftY+dy;
+        st.grid[ny][nx]={type:c.type,age:mergedAge,level:baseLevel,w:2,h:2,abandoned:false};
       }
     }
-    if (overlapsExisting) continue;
-
-    if (!canPlLg(sx,sy,targetW,targetH,c.type)) continue;
-    
-    // Collect all cells in the 2x2 area
-    const cells=[];
-    const processedBuildings=new Set(); // Track buildings we've already processed
-    const buildingSizes=[]; // Track sizes of buildings found
-    let canMerge=true;
-    for (let dy=0; dy<targetH; dy++) {
-      for (let dx=0; dx<targetW; dx++) {
-        const nx=sx+dx, ny=sy+dy;
-        // Ensure we're within bounds before accessing grid
-        if (nx<0 || nx>=GR_SZ || ny<0 || ny>=GR_SZ) {
-          canMerge=false;
-          break;
-        }
-        const nb=st.grid[ny][nx];
-        const nbw=nb.w||1, nbh=nb.h||1;
-        
-        // For merged buildings, only process the top-left cell
-        // Check if this cell is the top-left of a merged building
-        let isTopLeft=true;
-        if (nbw>1 || nbh>1) {
-          // Check if there's a cell to the left or above with the same building data
-          if (dx>0 && ny>=0 && ny<GR_SZ && nx-1>=0 && nx-1<GR_SZ) {
-            const leftCell=st.grid[ny][nx-1];
-            if (leftCell.type===nb.type && (leftCell.w||1)===nbw && (leftCell.h||1)===nbh) {
-              isTopLeft=false; // This is not the top-left
-            }
-          }
-          if (dy>0 && ny-1>=0 && ny-1<GR_SZ && nx>=0 && nx<GR_SZ) {
-            const aboveCell=st.grid[ny-1][nx];
-            if (aboveCell.type===nb.type && (aboveCell.w||1)===nbw && (aboveCell.h||1)===nbh) {
-              isTopLeft=false; // This is not the top-left
-            }
-          }
-        }
-        
-        // Skip if this is not the top-left of a merged building
-        if (!isTopLeft) continue;
-        
-        // Create a key for this building
-        const buildingKey=`${nx},${ny},${nb.type},${nbw},${nbh}`;
-        if (processedBuildings.has(buildingKey)) continue;
-        processedBuildings.add(buildingKey);
-        
-        // Track building size for later check
-        buildingSizes.push({w:nbw, h:nbh});
-        
-        // Check if cell is compatible (same type, empty, or abandoned)
-        if (nb.type!==c.type && nb.type!=='empty' && !nb.abandoned) {
-          canMerge=false;
-          break;
-        }
-        
-        // Check if cell is compatible size (must be 1x1, 1x2, or 2x1, or empty)
-        // If it's already 2x2, we can't merge (already merged)
-        if (nbw===2 && nbh===2) {
-          canMerge=false;
-          break;
-        }
-        // If it's a larger building (bigger than 2x2), we can't merge
-        if (nbw>2 || nbh>2) {
-          canMerge=false;
-          break;
-        }
-        // For 1x2 or 2x1 buildings, check if they fit within our 2x2 area
-        // The building's extent must be within [sx, sx+targetW) and [sy, sy+targetH)
-        if (nbw>1 || nbh>1) {
-          // Check if building extends beyond our target area
-          if (nx+nbw>sx+targetW || ny+nbh>sy+targetH || nx<sx || ny<sy) {
-            canMerge=false;
-            break;
-          }
-        }
-        
-        // Add all cells of this building to our collection - ensure bounds checking
-        for (let bdy=0; bdy<nbh; bdy++) {
-          for (let bdx=0; bdx<nbw; bdx++) {
-            const bx=nx+bdx, by=ny+bdy;
-            if (bx>=sx && bx<sx+targetW && by>=sy && by<sy+targetH && bx>=0 && bx<GR_SZ && by>=0 && by<GR_SZ) {
-              cells.push({x:bx, y:by, cell:st.grid[by][bx]});
-            }
-          }
-        }
-      }
-      if (!canMerge) break;
-    }
-    
-    // Deduplicate cells (in case a building spans multiple cells we're adding)
-    const uniqueCells=[];
-    const cellKeys=new Set();
-    for (const cellInfo of cells) {
-      const key=`${cellInfo.x},${cellInfo.y}`;
-      if (!cellKeys.has(key)) {
-        cellKeys.add(key);
-        uniqueCells.push(cellInfo);
-      }
-    }
-    
-    // Make sure we have exactly 4 cells (2x2)
-    if (uniqueCells.length!==4) {
-      canMerge=false;
-    }
-    
-    // CRITICAL: Only merge to 2x2 if at least one building is already 2x1 or 1x2
-    // Check if we have at least one 2x1 or 1x2 building in the area
-    let has2x1Or1x2=false;
-    for (const size of buildingSizes) {
-      if ((size.w===2 && size.h===1) || (size.w===1 && size.h===2)) {
-        has2x1Or1x2=true;
-        break;
-      }
-    }
-    
-    if (!has2x1Or1x2) {
-      canMerge=false;
-    }
-    
-    if (!canMerge) continue;
-    
-    // Use the deduplicated cells (replace the original cells array)
-    cells.length=0;
-    cells.push(...uniqueCells);
-    
-    // Sort cells by priority: empty > l0 > l1 > l2 > l3
-    // For merging, we want to favor empty > l0 > l1
-    cells.sort((a, b) => {
-      const aCell=a.cell, bCell=b.cell;
-      
-      // Empty cells have highest priority
-      if (aCell.type==='empty' && bCell.type!=='empty') return -1;
-      if (bCell.type==='empty' && aCell.type!=='empty') return 1;
-      
-      // If both are same type, prioritize by level (lower level = higher priority for merging)
-      if (aCell.type===c.type && bCell.type===c.type) {
-        const aLevel=aCell.level||0, bLevel=bCell.level||0;
-        // Empty > l0 > l1
-        if (aLevel===0 && bLevel>0) return -1;
-        if (bLevel===0 && aLevel>0) return 1;
-        if (aLevel===1 && bLevel>1) return -1;
-        if (bLevel===1 && aLevel>1) return 1;
-        return aLevel-bLevel;
-      }
-      
-      return 0;
-    });
-    
-    // Determine the best level to use (prioritize empty > l0 > l1)
-    // Priority: empty zones become l0, then favor l0 over l1, l1 over l2, etc.
-    let bestLevel=null;
-    let bestAge=0;
-    let hasEmpty=false;
-    let isAbandoned=false;
-    const levelsFound=[];
-    
-    for (const cellInfo of cells) {
-      const cell=cellInfo.cell;
-      if (cell.type==='empty') {
-        hasEmpty=true;
-        // Empty zones become level 0 when merged
-        if (bestLevel===null || bestLevel>0) bestLevel=0;
-      } else if (cell.type===c.type) {
-        const cellLevel=cell.level||0;
-        levelsFound.push(cellLevel);
-        bestAge=Math.max(bestAge, cell.age||0);
-        // If any cell is abandoned, the merged building is abandoned
-        if (cell.abandoned) isAbandoned=true;
-      }
-    }
-    
-    // If we have empty cells, prioritize level 0
-    if (hasEmpty) {
-      bestLevel=0;
-    } else if (bestLevel===null && levelsFound.length>0) {
-      // No empty cells - use the lowest level found (prioritize l0 > l1 > l2 > l3)
-      bestLevel=Math.min(...levelsFound);
-    } else {
-      bestLevel=c.level||0;
-    }
-    
-    // Merge all cells to 2x2 - ensure all cells are within bounds
-    for (const cellInfo of cells) {
-      const nx=cellInfo.x, ny=cellInfo.y;
-      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-        st.grid[ny][nx]={type:c.type,age:bestAge,level:bestLevel,w:targetW,h:targetH,abandoned:isAbandoned};
-      }
-    }
-    
-    // Ensure any empty cells outside the merged area are normalized to 1x1
-    // Check surrounding cells that might have been affected
-    for (let checkY=Math.max(0,y-1); checkY<=Math.min(GR_SZ-1,y+3); checkY++) {
-      for (let checkX=Math.max(0,x-1); checkX<=Math.min(GR_SZ-1,x+3); checkX++) {
-        const checkCell=st.grid[checkY][checkX];
-        if (checkCell.type==='empty') {
-          normalizeEmptyCell(checkX,checkY);
-        }
-      }
-    }
-    
     return true;
   }
   
@@ -2769,6 +2594,9 @@ function plySnd(t) {
 
 if (!ld()) { initGr('balanced'); st.newsEvents=['Welcome to '+st.cityName+'!']; }
 if (!st.zoom) st.zoom=1;
+if (st.disastersEnabled === undefined) st.disastersEnabled = true;
+const disastersToggleEl = document.getElementById('disastersToggle');
+if (disastersToggleEl) disastersToggleEl.checked = st.disastersEnabled;
 applyZoom();
 drGr(); updUI(); updNwsTk(); selTl('road');
 if (st.speed>0) { TK_INT=st.speed; tkTmr=setInterval(simTk,TK_INT); }

@@ -50,7 +50,7 @@ function getIconForFile(filename: string): string {
   return '📄'; // Default icon
 }
 
-async function buildApplets() {
+export async function buildApplets() {
   const distDir = join(process.cwd(), 'dist');
   
   // Create dist directory if it doesn't exist
@@ -116,9 +116,11 @@ async function buildApplets() {
   console.log(`\n✨ Build complete! Generated ${htmlFiles.length} applet(s) in /dist`);
 }
 
-// Run the build
-buildApplets().catch(err => {
-  console.error('Build failed:', err);
-  process.exit(1);
-});
+// Run the build only when executed directly (not when imported)
+if (import.meta.main) {
+  buildApplets().catch(err => {
+    console.error('Build failed:', err);
+    process.exit(1);
+  });
+}
 
