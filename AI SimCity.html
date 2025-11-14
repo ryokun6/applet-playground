@@ -509,26 +509,57 @@ function drTl(x,y,tp,lv,ab,w,h) {
       if (w===2) ctx.fillRect(px+21,py+11,2,2); 
     }
     else {
-      const bh=w===2?ht-5:(lv===1?7:(lv===2?9:11)), yo=w===2?4:(lv===1?6:(lv===2?5:3));
+      const bh=w===2?ht-4:(lv===1?8:(lv===2?10:11)), yo=w===2?3:(lv===1?5:(lv===2?4:3));
+      // Main building body
       ctx.fillStyle=w===2?'#ca8a04':(lv===3?'#eab308':(lv===2?'#ca8a04':'#a16207')); 
-      ctx.fillRect(px+2,py+yo,wd-4,bh);
-      ctx.fillStyle=w===2?'#a16207':(lv===3?'#ca8a04':'#a16207'); 
-      ctx.fillRect(px+2,py+yo,wd-4,Math.floor(bh*0.3));
-      ctx.fillStyle='#fde047'; 
-      const sh=lv===3?5:4; 
-      ctx.fillRect(px+6,py+2,3,sh); 
-      if (w===2) ctx.fillRect(px+22,py+2,3,sh);
-      ctx.fillStyle='#facc15'; 
-      ctx.fillRect(px+7,py+1,1,2); 
-      if (lv>=2||w===2) ctx.fillRect(px+10,py+2,2,3); 
-      if (w===2) ctx.fillRect(px+23,py+1,1,2);
+      ctx.fillRect(px+2,py+yo+1,wd-4,bh);
+      // Slanted roof (darker top section)
+      ctx.fillStyle=w===2?'#a16207':(lv===3?'#ca8a04':'#854d0e'); 
+      ctx.fillRect(px+2,py+yo+1,wd-4,Math.floor(bh*0.25));
+      // Chimney structure
+      ctx.fillStyle='#6b4423'; 
+      const ch=lv===3?6:5; 
+      ctx.fillRect(px+4,py+yo-ch+1,2,ch); 
+      if (w===2) ctx.fillRect(px+26,py+yo-ch+1,2,ch);
+      // Chimney top cap
       ctx.fillStyle='#854d0e'; 
-      ctx.fillRect(px+5,py+ht-4,2,2); 
-      ctx.fillRect(px+9,py+ht-4,2,2); 
+      ctx.fillRect(px+3,py+yo-ch+1,4,1); 
+      if (w===2) ctx.fillRect(px+25,py+yo-ch+1,4,1);
+      // Smoke from chimney
+      ctx.fillStyle='#9ca3af'; 
+      ctx.fillRect(px+4,py+yo-ch,1,1); 
+      ctx.fillRect(px+5,py+yo-ch-1,1,1); 
       if (w===2) { 
-        ctx.fillRect(px+21,py+ht-4,2,2); 
-        ctx.fillRect(px+25,py+ht-4,2,2); 
+        ctx.fillRect(px+26,py+yo-ch,1,1); 
+        ctx.fillRect(px+27,py+yo-ch-1,1,1); 
       }
+      // Windows
+      ctx.fillStyle='#fde047'; 
+      if (w===2 && h===2) {
+        // Two rows of windows for 2x2 buildings
+        const wy1 = py+yo+Math.floor(bh*0.4);
+        const wy2 = py+yo+Math.floor(bh*0.58);
+        ctx.fillRect(px+5,wy1,2,2); 
+        ctx.fillRect(px+9,wy1,2,2); 
+        ctx.fillRect(px+21,wy1,2,2); 
+        ctx.fillRect(px+25,wy1,2,2);
+        ctx.fillRect(px+5,wy2,2,2); 
+        ctx.fillRect(px+9,wy2,2,2); 
+        ctx.fillRect(px+21,wy2,2,2); 
+        ctx.fillRect(px+25,wy2,2,2);
+      } else {
+        // Single row of windows for smaller buildings
+        ctx.fillRect(px+5,py+yo+Math.floor(bh*0.55),2,2); 
+        ctx.fillRect(px+9,py+yo+Math.floor(bh*0.55),2,2); 
+        if (w===2) { 
+          ctx.fillRect(px+21,py+yo+Math.floor(bh*0.55),2,2); 
+          ctx.fillRect(px+25,py+yo+Math.floor(bh*0.55),2,2); 
+        }
+      }
+      // Entrance/door
+      ctx.fillStyle='#713f12'; 
+      ctx.fillRect(px+6,py+ht-3,4,3); 
+      if (w===2) ctx.fillRect(px+22,py+ht-3,4,3);
     }
   } else if (tp.startsWith('park')) {
     const bc=tp==='park'?'#1d6b2e':(tp==='park2'?'#2a5a3a':(tp==='park3'?'#1a5a2a':'#2d6b1e'));
