@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <!-- ts=1762372277920 --> 
+  
+  <script type="module" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.174.0/three.module.min.js"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Geneva-12", "ArkPixel", "SerenityOS-Emoji", "sans-serif"],
+            mono: ["Monaco", "ArkPixel", "SerenityOS-Emoji", "ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"],
+            serif: ["Mondwest", "Yu Mincho", "Hiragino Mincho Pro", "Georgia", "Palatino", "SerenityOS-Emoji", "serif"],
+            emoji: ["SerenityOS-Emoji", "AppleColorEmoji", "AppleColorEmojiFallback"],
+            'geneva': ["Geneva-12", "ArkPixel", "SerenityOS-Emoji", "system-ui", "-apple-system", "sans-serif"],
+            'mondwest': ["Mondwest", "Yu Mincho", "Hiragino Mincho Pro", "Georgia", "Palatino", "Yu Mincho", "Hiragino Mincho Pro", "serif"],
+            'neuebit': ["NeueBit", "ArkPixel", "SerenityOS-Emoji", "Helvetica", "Arial", "Hiragino Sans", "sans-serif"],
+            'monaco': ["Monaco", "ArkPixel", "SerenityOS-Emoji", "monospace"],
+            'jacquard': ["Jacquard", "Yu Mincho", "Hiragino Mincho Pro", "Georgia", "Palatino", "serif"]
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      
+    }
+    html, body {
+      margin: 0;
+      overflow-x: auto; /* Allow horizontal scroll if content overflows */
+      width: 100%;
+      height: 100%;
+      max-width: 100%; /* Prevent body from exceeding viewport width */
+      
+    }
+    
+    /* Ensure pre doesn't break layout */
+    pre {
+      white-space: pre-wrap; /* Allow wrapping */
+      word-break: break-all; /* Break long words */
+    }
+  </style>
+  
+  <!-- Move click interceptor script to head for earlier execution -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener('click', function(event) {
+        var targetElement = event.target.closest('a');
+        // Only intercept if it's a valid link and NOT inside the draggable toolbar
+        if (targetElement && targetElement.href && !targetElement.closest('[data-drag-controls]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          try {
+            // Resolve relative URLs against the document's base URI (if set) or window location
+            const absoluteUrl = new URL(targetElement.getAttribute('href'), document.baseURI || window.location.href).href;
+            // Use a specific message type for AI HTML navigation
+            window.parent.postMessage({ type: 'aiHtmlNavigation', url: absoluteUrl }, '*');
+            console.log('Intercepted link click:', absoluteUrl);
+          } catch (e) { console.error("Error resolving/posting URL:", e); }
+        }
+      }, true); // Use capture phase to intercept early
+    });
+    
+    // Also add immediate execution version for documents that load quickly
+    // This helps ensure we don't miss any clicks during initial page load
+    (function() {
+      document.addEventListener('click', function(event) {
+        var targetElement = event.target.closest('a');
+        // Only intercept if it's a valid link and NOT inside the draggable toolbar
+        if (targetElement && targetElement.href && !targetElement.closest('[data-drag-controls]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          try {
+            // Resolve relative URLs against the document's base URI (if set) or window location
+            const absoluteUrl = new URL(targetElement.getAttribute('href'), document.baseURI || window.location.href).href;
+            // Use a specific message type for AI HTML navigation
+            window.parent.postMessage({ type: 'aiHtmlNavigation', url: absoluteUrl }, '*');
+            console.log('Intercepted link click (immediate handler):', absoluteUrl);
+          } catch (e) { console.error("Error resolving/posting URL:", e); }
+        }
+      }, true); // Use capture phase to intercept early
+    })();
+  </script>
+ 
+</head>
+<body>
+  <div class="w-full h-screen bg-neutral-100 font-geneva flex flex-col overflow-hidden">
+  <div class="flex-1 flex items-end justify-end p-4 pr-6 sm:p-6 sm:pr-8 min-h-0">
+    <div id="display" class="text-black text-7xl font-light text-right transition-all duration-200 leading-tight">0</div>
+  </div>
+  
+  <div class="p-3 sm:p-4 pb-4 sm:pb-8 grid grid-cols-4 gap-2 sm:gap-3">
+    <button class="btn bg-neutral-300 text-black" data-action="backspace">⌫</button>
+    <button class="btn bg-neutral-300 text-black" data-action="clear">AC</button>
+    <button class="btn bg-neutral-300 text-black" data-action="percent">%</button>
+    <button class="btn bg-orange-500 text-white" data-action="divide">÷</button>
+    
+    <button class="btn bg-white text-black" data-num="7">7</button>
+    <button class="btn bg-white text-black" data-num="8">8</button>
+    <button class="btn bg-white text-black" data-num="9">9</button>
+    <button class="btn bg-orange-500 text-white" data-action="multiply">×</button>
+    
+    <button class="btn bg-white text-black" data-num="4">4</button>
+    <button class="btn bg-white text-black" data-num="5">5</button>
+    <button class="btn bg-white text-black" data-num="6">6</button>
+    <button class="btn bg-orange-500 text-white" data-action="subtract">−</button>
+    
+    <button class="btn bg-white text-black" data-num="1">1</button>
+    <button class="btn bg-white text-black" data-num="2">2</button>
+    <button class="btn bg-white text-black" data-num="3">3</button>
+    <button class="btn bg-orange-500 text-white" data-action="add">+</button>
+    
+    <button class="btn bg-white text-black" data-action="negate">+/−</button>
+    <button class="btn bg-white text-black" data-num="0">0</button>
+    <button class="btn bg-white text-black" data-action="decimal">.</button>
+    <button class="btn bg-orange-500 text-white" data-action="equals">=</button>
+  </div>
+</div>
+
+<style>
+.btn {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transform: scale(1);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-height: 0;
+}
+.btn:active {
+  transform: scale(0.92);
+  box-shadow: 0 0 1px rgba(0,0,0,0.2);
+}
+.btn.pressed {
+  transform: scale(0.92);
+  box-shadow: 0 0 1px rgba(0,0,0,0.2);
+}
+@media (min-width: 640px) {
+  .btn {
+    font-size: 2rem;
+  }
+}
+</style>
+
+<script>
+const display = document.getElementById('display');
+
+let current = '0';
+let prev = null;
+let op = null;
+let reset = false;
+
+function speak(text) {
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.1;
+    utterance.pitch = 1;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
+  }
+}
+
+function updateDisplay() {
+  display.textContent = current;
+  
+  const len = current.length;
+  if (len <= 4) {
+    display.className = 'text-black text-7xl font-light text-right transition-all duration-200 leading-tight';
+  } else if (len <= 6) {
+    display.className = 'text-black text-6xl font-light text-right transition-all duration-200 leading-tight';
+  } else if (len <= 8) {
+    display.className = 'text-black text-5xl font-light text-right transition-all duration-200 leading-tight';
+  } else if (len <= 10) {
+    display.className = 'text-black text-4xl font-light text-right transition-all duration-200 leading-tight';
+  } else if (len <= 12) {
+    display.className = 'text-black text-3xl font-light text-right transition-all duration-200 leading-tight';
+  } else if (len <= 15) {
+    display.className = 'text-black text-2xl font-light text-right transition-all duration-200 leading-tight';
+  } else {
+    display.className = 'text-black text-xl font-light text-right transition-all duration-200 leading-tight';
+  }
+}
+
+function clear() {
+  current = '0';
+  prev = null;
+  op = null;
+  reset = false;
+  speak('cleared');
+}
+
+function backspace() {
+  if (current.length > 1) {
+    current = current.slice(0, -1);
+  } else {
+    current = '0';
+  }
+  speak('delete');
+}
+
+function appendNum(num) {
+  if (reset) {
+    current = num;
+    reset = false;
+  } else {
+    current = current === '0' ? num : current + num;
+  }
+  speak(num);
+}
+
+function appendDecimal() {
+  if (reset) {
+    current = '0.';
+    reset = false;
+  } else if (!current.includes('.')) {
+    current += '.';
+  }
+  speak('point');
+}
+
+function negate() {
+  current = String(parseFloat(current) * -1);
+  speak('negative ' + current);
+}
+
+function percent() {
+  current = String(parseFloat(current) / 100);
+  speak(current);
+}
+
+function setOp(o) {
+  if (op && !reset) {
+    calculate();
+  }
+  prev = current;
+  op = o;
+  reset = true;
+  
+  const opNames = {
+    'add': 'plus',
+    'subtract': 'minus',
+    'multiply': 'times',
+    'divide': 'divided by'
+  };
+  speak(opNames[o]);
+}
+
+function calculate() {
+  if (!prev || !op) return;
+  
+  const a = parseFloat(prev);
+  const b = parseFloat(current);
+  let result = 0;
+  
+  switch(op) {
+    case 'add': result = a + b; break;
+    case 'subtract': result = a - b; break;
+    case 'multiply': result = a * b; break;
+    case 'divide': result = b !== 0 ? a / b : 0; break;
+  }
+  
+  current = String(result);
+  prev = null;
+  op = null;
+  reset = true;
+  
+  speak('equals ' + current);
+}
+
+document.querySelectorAll('.btn').forEach(btn => {
+  btn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    btn.classList.add('pressed');
+  });
+  
+  btn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    btn.classList.remove('pressed');
+    
+    const num = btn.dataset.num;
+    const action = btn.dataset.action;
+    
+    if (num !== undefined) {
+      appendNum(num);
+    } else if (action === 'clear') {
+      clear();
+    } else if (action === 'backspace') {
+      backspace();
+    } else if (action === 'decimal') {
+      appendDecimal();
+    } else if (action === 'negate') {
+      negate();
+    } else if (action === 'percent') {
+      percent();
+    } else if (action === 'equals') {
+      calculate();
+    } else if (action) {
+      setOp(action);
+    }
+    
+    updateDisplay();
+  });
+  
+  btn.addEventListener('touchcancel', () => {
+    btn.classList.remove('pressed');
+  });
+  
+  btn.addEventListener('click', () => {
+    const num = btn.dataset.num;
+    const action = btn.dataset.action;
+    
+    if (num !== undefined) {
+      appendNum(num);
+    } else if (action === 'clear') {
+      clear();
+    } else if (action === 'backspace') {
+      backspace();
+    } else if (action === 'decimal') {
+      appendDecimal();
+    } else if (action === 'negate') {
+      negate();
+    } else if (action === 'percent') {
+      percent();
+    } else if (action === 'equals') {
+      calculate();
+    } else if (action) {
+      setOp(action);
+    }
+    
+    updateDisplay();
+  });
+});
+</script>
+</body>
+</html>
