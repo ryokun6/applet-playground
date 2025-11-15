@@ -2956,56 +2956,21 @@ document.getElementById('closeInfoBtn').addEventListener('click', () => {
   setCrimeOverlay(false);
 });
 
-document.getElementById('rciBtn').addEventListener('click', () => {
-  shwInfo('RCI Demand', `<div><span class="text-green-500">Residential:</span> ${st.rDemand}%</div><div><span class="text-blue-500">Commercial:</span> ${st.cDemand}%</div><div><span class="text-yellow-500">Industrial:</span> ${st.iDemand}%</div><div class="mt-2 text-xs text-neutral-400">Higher demand means more zones needed</div>`, 'rci');
-});
+function statItem(label, value, colorClass = '') {
+  return `<div class="flex flex-col flex-shrink-0"><div class="text-xs text-neutral-400">${label}</div><div class="${colorClass}">${value}</div></div>`;
+}
 
-document.getElementById('popBtn').addEventListener('click', () => {
-  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
-  const bPR=10; let popL1=0, popL2=0, popL3=0;
-  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
-    const c=st.grid[y][x];
-    if (c.type==='residential' && hasRdAcc(x,y) && !c.abandoned) {
-      const sM=(c.w||1)*(c.h||1);
-      if (c.level===3) popL3+=Math.floor(bPR*sM*1.5);
-      else if (c.level===2) popL2+=Math.floor(bPR*sM*1.2);
-      else if (c.level>=1) popL1+=Math.floor(bPR*sM*1);
-    }
-  }
-  shwInfo('Population Stats', `<div>Total: ${st.population.toLocaleString()}</div><div>Residential zones: ${cnts.residential||0}</div><div>Employment: ${st.employment}%</div><div class="mt-2">Level: L1: ${popL1.toLocaleString()}, L2: ${popL2.toLocaleString()}, L3: ${popL3.toLocaleString()}</div><div class="mt-2 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`, 'pop');
-});
-
-document.getElementById('moneyBtn').addEventListener('click', () => {
-  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
-  const inc=Math.floor(st.population*2), mnt=Math.floor(cnts.road*1+(cnts.residential||0)*2+(cnts.commercial||0)*3+(cnts.industrial||0)*5+(cnts.park||0)*2+(cnts.police||0)*10+(cnts.fire||0)*10+(cnts.school||0)*15+(cnts.hospital||0)*20);
-  shwInfo('Budget', `<div>Balance: $${st.money.toLocaleString()}</div><div class="text-green-500">Income: +$${inc}</div><div class="text-red-400">Expenses: -$${mnt}</div><div class="mt-2 text-xs text-neutral-400">Income from population taxes</div>`, 'money');
-});
-
-document.getElementById('happyBtn').addEventListener('click', () => {
-  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
-  let avgCrime=0;
-  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
-    avgCrime+=st.crime[y][x]||30;
-  }
-  avgCrime=Math.floor(avgCrime/(GR_SZ*GR_SZ));
-  shwInfo('Happiness', `<div>Level: ${st.happiness}/100</div><div class="mt-1">Parks: ${cnts.park||0}</div><div>Services: ${(cnts.police||0)+(cnts.fire||0)+(cnts.school||0)+(cnts.hospital||0)}</div><div class="mt-1">Avg Crime: ${avgCrime}%</div><div>Active Crimes: ${st.crimeEvents.length}</div><div class="mt-2 text-xs text-neutral-400">Build parks, services, and police to increase</div>`, 'happy');
-});
-
-function updateStatsPanel() {
-  if (!currentInfoType) return;
-  const pnl = document.getElementById('infoPanel');
-  if (!pnl || pnl.classList.contains('hidden')) return;
-  
+function getStatsContent(infoType) {
   const cnts = {}; 
   st.grid.flat().forEach(c => cnts[c.type] = (cnts[c.type] || 0) + 1);
   
   let content = '';
   let title = '';
   
-  if (currentInfoType === 'rci') {
+  if (infoType === 'rci') {
     title = 'RCI Demand';
-    content = `<div><span class="text-green-500">Residential:</span> ${st.rDemand}%</div><div><span class="text-blue-500">Commercial:</span> ${st.cDemand}%</div><div><span class="text-yellow-500">Industrial:</span> ${st.iDemand}%</div><div class="mt-2 text-xs text-neutral-400">Higher demand means more zones needed</div>`;
-  } else if (currentInfoType === 'pop') {
+    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('residential', `${st.rDemand}%`, 'text-green-500')}${statItem('commercial', `${st.cDemand}%`, 'text-blue-500')}${statItem('industrial', `${st.iDemand}%`, 'text-yellow-500')}</div><div class="mt-3 text-xs text-neutral-400">Higher demand means more zones needed</div>`;
+  } else if (infoType === 'pop') {
     title = 'Population Stats';
     const bPR=10; let popL1=0, popL2=0, popL3=0;
     for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
@@ -3017,13 +2982,13 @@ function updateStatsPanel() {
         else if (c.level>=1) popL1+=Math.floor(bPR*sM*1);
       }
     }
-    content = `<div>Total: ${st.population.toLocaleString()}</div><div>Residential zones: ${cnts.residential||0}</div><div>Employment: ${st.employment}%</div><div class="mt-2">Level: L1: ${popL1.toLocaleString()}, L2: ${popL2.toLocaleString()}, L3: ${popL3.toLocaleString()}</div><div class="mt-2 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`;
-  } else if (currentInfoType === 'money') {
+    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('total', st.population.toLocaleString())}${statItem('zones', cnts.residential||0)}${statItem('employment', `${st.employment}%`)}${statItem('L1', popL1.toLocaleString())}${statItem('L2', popL2.toLocaleString())}${statItem('L3', popL3.toLocaleString())}</div><div class="mt-3 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`;
+  } else if (infoType === 'money') {
     title = 'Budget';
     const inc = Math.floor(st.population * 2);
     const mnt = Math.floor(cnts.road * 1 + (cnts.residential || 0) * 2 + (cnts.commercial || 0) * 3 + (cnts.industrial || 0) * 5 + (cnts.park || 0) * 2 + (cnts.police || 0) * 10 + (cnts.fire || 0) * 10 + (cnts.school || 0) * 15 + (cnts.hospital || 0) * 20);
-    content = `<div>Balance: $${st.money.toLocaleString()}</div><div class="text-green-500">Income: +$${inc}</div><div class="text-red-400">Expenses: -$${mnt}</div><div class="mt-2 text-xs text-neutral-400">Income from population taxes</div>`;
-  } else if (currentInfoType === 'happy') {
+    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('balance', `$${st.money.toLocaleString()}`)}${statItem('income', `+$${inc}`, 'text-green-500')}${statItem('expenses', `-$${mnt}`, 'text-red-400')}</div><div class="mt-3 text-xs text-neutral-400">Income from population taxes</div>`;
+  } else if (infoType === 'happy') {
     title = 'Happiness';
     let avgCrime = 0;
     for (let y = 0; y < GR_SZ; y++) {
@@ -3032,8 +2997,38 @@ function updateStatsPanel() {
       }
     }
     avgCrime = Math.floor(avgCrime / (GR_SZ * GR_SZ));
-    content = `<div>Level: ${st.happiness}/100</div><div class="mt-1">Parks: ${cnts.park||0}</div><div>Services: ${(cnts.police||0)+(cnts.fire||0)+(cnts.school||0)+(cnts.hospital||0)}</div><div class="mt-1">Avg Crime: ${avgCrime}%</div><div>Active Crimes: ${st.crimeEvents.length}</div><div class="mt-2 text-xs text-neutral-400">Build parks, services, and police to increase</div>`;
+    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('level', `${st.happiness}/100`)}${statItem('parks', cnts.park||0)}${statItem('services', (cnts.police||0)+(cnts.fire||0)+(cnts.school||0)+(cnts.hospital||0))}${statItem('crime', `${avgCrime}%`)}${statItem('crimes', st.crimeEvents.length)}</div><div class="mt-3 text-xs text-neutral-400">Build parks, services, and police to increase</div>`;
   }
+  
+  return { title, content };
+}
+
+document.getElementById('rciBtn').addEventListener('click', () => {
+  const { title, content } = getStatsContent('rci');
+  shwInfo(title, content, 'rci');
+});
+
+document.getElementById('popBtn').addEventListener('click', () => {
+  const { title, content } = getStatsContent('pop');
+  shwInfo(title, content, 'pop');
+});
+
+document.getElementById('moneyBtn').addEventListener('click', () => {
+  const { title, content } = getStatsContent('money');
+  shwInfo(title, content, 'money');
+});
+
+document.getElementById('happyBtn').addEventListener('click', () => {
+  const { title, content } = getStatsContent('happy');
+  shwInfo(title, content, 'happy');
+});
+
+function updateStatsPanel() {
+  if (!currentInfoType) return;
+  const pnl = document.getElementById('infoPanel');
+  if (!pnl || pnl.classList.contains('hidden')) return;
+  
+  const { title, content } = getStatsContent(currentInfoType);
   
   if (title && content) {
     document.getElementById('infoTitle').textContent = title;
@@ -4005,26 +4000,26 @@ function showBuildingInfo(x, y) {
   title.textContent = `${icon} ${name}`;
   
   // Build content
-  let contentParts = [];
+  let statItems = [];
   
   // Size info for multi-tile buildings
   if (c.w > 1 || c.h > 1) {
-    contentParts.push(`<div>Size: ${c.w}×${c.h}</div>`);
+    statItems.push(statItem('size', `${c.w}×${c.h}`));
   }
   
   // Level info for zones
   if (c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') {
     if (c.abandoned) {
-      contentParts.push(`<div class="text-red-400">Status: Abandoned</div>`);
+      statItems.push(statItem('status', 'Abandoned', 'text-red-400'));
     } else {
-      contentParts.push(`<div>Level: ${c.level}</div>`);
+      statItems.push(statItem('level', c.level));
     }
   }
   
   // Age info
   if (c.age !== undefined) {
     const years = Math.floor(c.age / 12);
-    contentParts.push(`<div>Age: ${years} year${years !== 1 ? 's' : ''}</div>`);
+    statItems.push(statItem('age', `${years} year${years !== 1 ? 's' : ''}`));
   }
   
   // Land value and crime for this tile
@@ -4033,16 +4028,20 @@ function showBuildingInfo(x, y) {
   
   if (showLandValueOverlay) {
     const lvColor = landValue >= 80 ? 'text-green-400' : landValue >= 50 ? 'text-yellow-400' : 'text-orange-400';
-    contentParts.push(`<div class="${lvColor}">Land Value: ${landValue.toFixed(0)}</div>`);
+    statItems.push(statItem('land value', landValue.toFixed(0), lvColor));
   }
   
   if (showCrimeOverlay) {
     const crimeColor = crime >= 70 ? 'text-red-400' : crime >= 30 ? 'text-yellow-400' : 'text-green-400';
     const crimeLevel = crime >= 70 ? 'High' : crime >= 30 ? 'Medium' : 'Low';
-    contentParts.push(`<div class="${crimeColor}">Crime: ${crimeLevel} (${crime.toFixed(0)})</div>`);
+    statItems.push(statItem('crime', `${crimeLevel} (${crime.toFixed(0)})`, crimeColor));
   }
   
-  content.innerHTML = contentParts.join('');
+  if (statItems.length > 0) {
+    content.innerHTML = `<div class="flex flex-wrap gap-6 py-2">${statItems.join('')}</div>`;
+  } else {
+    content.innerHTML = '';
+  }
   panel.classList.remove('hidden');
   
   // Set highlighted building (get full building bounds from top-left corner)
