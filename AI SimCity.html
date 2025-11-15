@@ -220,9 +220,9 @@
           <div class="h-px w-full bg-neutral-700"></div>
           <div class="h-1"></div>
         </div>
-        <button data-submenu="power" data-tooltip="power" data-shortcut="E" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">⚡</button>
+        <button data-submenu="power" data-tooltip="energy" data-shortcut="E" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">⚡</button>
+        <button data-submenu="services" data-tooltip="services" data-shortcut="S" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🏛️</button>
         <button data-submenu="park" data-tooltip="park" data-shortcut="P" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🌳</button>
-        <button data-submenu="institution" data-tooltip="institutions" data-shortcut="S" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🏛️</button>
         <div class="w-full flex flex-col">
           <div class="h-1"></div>
           <div class="h-px w-full bg-neutral-700"></div>
@@ -2899,7 +2899,7 @@ const submenuItems = {
     { tool: 'park3', icon: '🌲', tooltip: 'park', shortcut: '3' },
     { tool: 'park4', icon: '🌻', tooltip: 'park', shortcut: '4' }
   ],
-  institution: [
+  services: [
     { tool: 'police', icon: '🚓', tooltip: 'police station', shortcut: '1' },
     { tool: 'fire', icon: '🚒', tooltip: 'fire station', shortcut: '2' },
     { tool: 'school', icon: '🏫', tooltip: 'school', shortcut: '3' },
@@ -3099,8 +3099,8 @@ const keyToTool = {
   'I': 'industrial',
   'p': 'park',
   'P': 'park',
-  's': 'institution',
-  'S': 'institution',
+  's': 'services',
+  'S': 'services',
   'e': 'power',
   'E': 'power',
   'd': 'bulldoze',
@@ -3134,13 +3134,13 @@ function triggerToolByKey(key) {
       }
       return true;
     }
-  } else if (tool === 'institution') {
-    const institutionBtn = document.querySelector('[data-submenu="institution"]');
-    if (institutionBtn) {
-      if (activeSubmenu && activeSubmenu.button === institutionBtn) {
+  } else if (tool === 'services') {
+    const servicesBtn = document.querySelector('[data-submenu="services"]');
+    if (servicesBtn) {
+      if (activeSubmenu && activeSubmenu.button === servicesBtn) {
         closeSubmenu();
       } else {
-        openSubmenu(institutionBtn, 'institution');
+        openSubmenu(servicesBtn, 'services');
       }
       return true;
     }
@@ -3188,11 +3188,11 @@ function handleSubmenuShortcut(key) {
         return true;
       }
     }
-  } else if (activeSubmenu.submenuKey === 'institution') {
+  } else if (activeSubmenu.submenuKey === 'services') {
     const shortcuts = { '1': 'police', '2': 'fire', '3': 'school', '4': 'hospital' };
-    const institutionTool = shortcuts[key];
-    if (institutionTool) {
-      const subBtn = document.querySelector(`[data-tool="${institutionTool}"]`);
+    const servicesTool = shortcuts[key];
+    if (servicesTool) {
+      const subBtn = document.querySelector(`[data-tool="${servicesTool}"]`);
       if (subBtn) {
         subBtn.click();
         return true;
@@ -3470,7 +3470,7 @@ function getStatsContent(infoType) {
     }
     content = `<div class="flex flex-wrap gap-6 py-2">${statItem('total', st.population.toLocaleString())}${statItem('zones', cnts.residential||0)}${statItem('employment', `${st.employment}%`)}${statItem('L1', popL1.toLocaleString())}${statItem('L2', popL2.toLocaleString())}${statItem('L3', popL3.toLocaleString())}</div><div class="mt-3 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`;
   } else if (infoType === 'power') {
-    title = 'Power';
+    title = 'Energy';
     // Calculate power stats
     let totalPowerGeneration = 0, totalPowerConsumption = 0;
     let coalGen = 0, nuclearGen = 0, windGen = 0;
@@ -4258,27 +4258,34 @@ function updFires() {
     }
     
     // Fire trucks are at scene - extinguish fire
-    // Extinguish faster with more trucks: 10 ticks per truck (min 5 ticks)
-    const maxAge = Math.max(5, 30 - trucksAtScene * 10);
+    // More trucks = faster extinguishing (15 ticks with 1 truck, down to 5 ticks with 3+ trucks)
+    const maxAge = trucksAtScene >= 1 ? Math.max(5, 15 - (trucksAtScene - 1) * 5) : 60;
     
     if (f.age>maxAge) { 
       sendEmergencyVehiclesHome('fire', f.x, f.y);
       
-      const cell=st.grid[f.y][f.x];
-      if (cell && cell.type!=='empty') {
-        const bounds=getBuildingBoundsFromCell(f.x,f.y);
-        const w=bounds.w||1, h=bounds.h||1;
-        for (let dy=0; dy<h; dy++) {
-          for (let dx=0; dx<w; dx++) {
-            const nx=bounds.startX+dx, ny=bounds.startY+dy;
-            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-              st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-              normalizeEmptyCell(nx,ny); // Ensure it's 1x1
+      // If fire trucks arrived (trucksAtScene > 0), save the building
+      if (trucksAtScene > 0) {
+        // Fire extinguished successfully - building saved!
+        return false; // Remove fire
+      } else {
+        // No fire trucks - building destroyed
+        const cell=st.grid[f.y][f.x];
+        if (cell && cell.type!=='empty') {
+          const bounds=getBuildingBoundsFromCell(f.x,f.y);
+          const w=bounds.w||1, h=bounds.h||1;
+          for (let dy=0; dy<h; dy++) {
+            for (let dx=0; dx<w; dx++) {
+              const nx=bounds.startX+dx, ny=bounds.startY+dy;
+              if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                normalizeEmptyCell(nx,ny);
+              }
             }
           }
         }
+        return false; 
       }
-      return false; 
     }
     const c=st.grid[f.y][f.x]; if (c.type==='empty') return false;
     let hasFr=false; for (let dy=-3; dy<=3; dy++) for (let dx=-3; dx<=3; dx++) {
