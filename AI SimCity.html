@@ -318,11 +318,13 @@
 
 <script>
 const GR_SZ = 32, CL_SZ = 16;
+const TICKS_PER_MONTH = 4;
+const TICKS_PER_YEAR = TICKS_PER_MONTH * 12;
 let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
 const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000,coal:5000,nuclear:10000,wind:3000};
 
-// Power generation amounts per plant
-const POWER_GENERATION = {coal:50,nuclear:100,wind:20};
+// Power generation amounts per plant (further boosted output for each type)
+const POWER_GENERATION = {coal:160,nuclear:320,wind:80};
 
 // Power consumption per building type and level
 function getPowerConsumption(buildingType, level) {
@@ -343,11 +345,53 @@ function getPowerConsumption(buildingType, level) {
   }
   return 0;
 }
+function getPowerSummary() {
+  let totalPowerGeneration=0;
+  let totalPowerDemand=0;
+  let totalPowerAllocated=0;
+  const processedPlants=new Set();
+  const processedBuildings=new Set();
+  const assignments=st.buildingPowerAssignments||{};
+
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const cell=st.grid[y][x];
+      if (!cell) continue;
+
+      if (cell.type==='coal'||cell.type==='nuclear'||cell.type==='wind') {
+        const key=getBuildingPowerKey(x,y);
+        if (!key || processedPlants.has(key)) continue;
+        processedPlants.add(key);
+        totalPowerGeneration+=POWER_GENERATION[cell.type]||0;
+        continue;
+      }
+
+      if (!(cell.type==='residential'||cell.type==='commercial'||cell.type==='industrial')) continue;
+      const buildingKey=getBuildingPowerKey(x,y);
+      if (!buildingKey || processedBuildings.has(buildingKey)) continue;
+      processedBuildings.add(buildingKey);
+
+      const consumption=getPowerConsumption(cell.type,cell.level||0);
+      if (consumption<=0) continue;
+      totalPowerDemand+=consumption;
+      if (assignments[buildingKey]) {
+        totalPowerAllocated+=consumption;
+      }
+    }
+  }
+
+  return {
+    generation: totalPowerGeneration,
+    demand: totalPowerDemand,
+    allocated: totalPowerAllocated,
+    surplus: totalPowerGeneration - totalPowerDemand
+  };
+}
 const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
 const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
 const STATION_MAX_ACTIVE = 2;
 
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[]};
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],buildingPowerAssignments:{}};
 let nextBuildingId = 1;
 let showLandValueOverlay = false;
 let showCrimeOverlay = false;
@@ -426,6 +470,7 @@ function normalizeEmptyCell(x,y) {
 function initGr(tt='balanced') {
   st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[]; st.stationDispatches={};
   st.powerGrid=[];
+  st.buildingPowerAssignments={};
   for (let y=0; y<GR_SZ; y++) {
     const r=[], vr=[], cr=[], pg=[];
     for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); pg.push(false); }
@@ -463,6 +508,7 @@ function ld() {
             st.powerGrid.push(pg);
           }
         }
+          if (!st.buildingPowerAssignments) st.buildingPowerAssignments = {};
         for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) { 
           if (!st.grid[y][x].level) st.grid[y][x].level=0; 
           if (!st.grid[y][x].w) st.grid[y][x].w=1; 
@@ -507,7 +553,6 @@ function drRd(px,py,nb) {
     else { ctx.fillRect(px,py+6,CL_SZ,4); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+4,py+7,2,2); ctx.fillRect(px+CL_SZ-6,py+7,2,2); }
   } else { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+7,py+4,2,2); ctx.fillRect(px+7,py+CL_SZ-6,2,2); }
 }
-
 function drTl(x,y,tp,lv,ab,w,h) {
   const px=x*CL_SZ, py=y*CL_SZ, wd=w*CL_SZ, ht=h*CL_SZ, tr=st.terrain[y][x];
   const c = st.grid[y][x];
@@ -515,20 +560,15 @@ function drTl(x,y,tp,lv,ab,w,h) {
   // Check if building needs power but doesn't have it
   let needsPowerButNoPower = false;
   if (!ab && (tp === 'residential' || tp === 'commercial' || tp === 'industrial')) {
-    const level = lv || 0;
-    let needsPower = false;
-    if (tp === 'residential' && (level === 2 || level === 3)) {
-      needsPower = true;
-    } else if (tp === 'commercial' || tp === 'industrial') {
-      needsPower = true;
-    }
-    if (needsPower) {
-      const hasPower = hasPowerAccess(x, y);
-      if (!hasPower) {
-        needsPowerButNoPower = true;
+      const level = lv || 0;
+      const needsPower = getPowerConsumption(tp, level) > 0;
+      if (needsPower) {
+        const hasPower = hasPowerAccess(x, y);
+        if (!hasPower) {
+          needsPowerButNoPower = true;
+        }
       }
     }
-  }
   if (tp==='empty') {
     if (tr==='water') ctx.fillStyle='#1e40af'; 
     else if (tr==='cliff') ctx.fillStyle='#3e2723'; 
@@ -1039,7 +1079,6 @@ function drTl(x,y,tp,lv,ab,w,h) {
     }
   }
 }
-
 function drGr() {
   ctx.clearRect(0,0,cvs.width,cvs.height); const drn={};
   for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
@@ -1670,7 +1709,6 @@ function getRoadCenterCoords(node) {
   if (!node) return { x: 0, y: 0 };
   return { x: node.x * CL_SZ + 7, y: node.y * CL_SZ + 7 };
 }
-
 function prepareEmergencyVehicleReturn(car, opts={}) {
   if (!car || !car.mission || car.mission.returning) return;
   
@@ -2268,22 +2306,9 @@ function updUI() {
   document.getElementById('happiness').textContent=st.happiness;
   
   // Calculate and update power status
-  let totalPowerGeneration = 0, totalPowerConsumption = 0;
-  for (let y=0; y<GR_SZ; y++) {
-    for (let x=0; x<GR_SZ; x++) {
-      const c = st.grid[y][x];
-      if (c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind') {
-        totalPowerGeneration += POWER_GENERATION[c.type] || 0;
-      }
-      if (c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') {
-        const level = c.level || 0;
-        totalPowerConsumption += getPowerConsumption(c.type, level);
-      }
-    }
-  }
+  const {generation: totalPowerGeneration, demand: totalPowerConsumption, surplus: powerSurplus} = getPowerSummary();
   const powerEl = document.getElementById('power');
   powerEl.textContent = `${totalPowerGeneration}/${totalPowerConsumption}`;
-  const powerSurplus = totalPowerGeneration - totalPowerConsumption;
   if (powerSurplus < 0) {
     powerEl.classList.remove('text-white', 'text-green-400', 'text-yellow-400');
     powerEl.classList.add('text-red-400');
@@ -2292,11 +2317,11 @@ function updUI() {
     powerEl.classList.add('text-white');
   }
   
-  if (!edtNm) {
-    const month = (st.tickCount % 12) + 1;
-    const monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-    document.getElementById('yearDisplay').textContent=`${monthNames[month-1]} ${st.year}`;
-  }
+    if (!edtNm) {
+      const monthIndex = Math.floor((st.tickCount % TICKS_PER_YEAR) / TICKS_PER_MONTH);
+      const monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+      document.getElementById('yearDisplay').textContent=`${monthNames[monthIndex]} ${st.year}`;
+    }
   const mEl=document.getElementById('money');
   if (st.money<0) { mEl.classList.remove('text-white'); mEl.classList.add('text-red-400'); }
   else { mEl.classList.remove('text-red-400'); mEl.classList.add('text-white'); }
@@ -2317,7 +2342,6 @@ function selTl(tl) {
   else if (tl) { const dn=tl.startsWith('park')?'park':tl; sTx.textContent=`placing ${dn}`; cTx.textContent=c>0?`$${c.toLocaleString()}`:''; }
   else { sTx.textContent='select a tool to start building'; cTx.textContent=''; }
 }
-
 function canPlLg(x,y,w,h,zt) {
   for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
     const nx=x+dx, ny=y+dy; if (nx>=GR_SZ||ny>=GR_SZ) return false;
@@ -2418,10 +2442,30 @@ function getBuildingBoundsFromCell(x,y) {
   return {startX:startX, startY:startY, w:baseW, h:baseH};
 }
 
+function getBuildingPowerKey(x,y) {
+  if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return null;
+  const cell=st.grid[y][x];
+  if (!cell) return null;
+  if (cell.buildingId!=null) return `id:${cell.buildingId}`;
+  const {startX,startY}=getBuildingBoundsFromCell(x,y);
+  return `xy:${startX},${startY}`;
+}
+
 function isTopLeftCell(x,y) {
   if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return false;
   const cell=st.grid[y][x];
   if (!cell) return false;
+  if (cell.buildingId != null) {
+    if (x>0) {
+      const left=st.grid[y][x-1];
+      if (left && left.buildingId===cell.buildingId) return false;
+    }
+    if (y>0) {
+      const above=st.grid[y-1][x];
+      if (above && above.buildingId===cell.buildingId) return false;
+    }
+    return true;
+  }
   const w=cell.w||1, h=cell.h||1;
   if (w===1 && h===1) return true;
   if (x>0) {
@@ -2916,7 +2960,6 @@ const submenuItems = {
     { disaster: 'earthquake', icon: '🌍', tooltip: 'earthquake', shortcut: '3' }
   ]
 };
-
 function openSubmenu(button, submenuKey) {
   // Close any existing submenu
   closeSubmenu();
@@ -3444,7 +3487,6 @@ document.getElementById('closeInfoBtn').addEventListener('click', () => {
 function statItem(label, value, colorClass = '') {
   return `<div class="flex flex-col flex-shrink-0"><div class="text-xs text-neutral-400">${label}</div><div class="${colorClass}">${value}</div></div>`;
 }
-
 function getStatsContent(infoType) {
   const cnts = {};
   st.grid.flat().forEach(c => cnts[c.type] = (cnts[c.type] || 0) + 1);
@@ -3477,34 +3519,38 @@ function getStatsContent(infoType) {
     let coalCount = 0, nuclearCount = 0, windCount = 0;
     let residentialConsumption = 0, commercialConsumption = 0, industrialConsumption = 0;
     
-    // Track processed power plants to count buildings, not tiles (using buildingId only)
+    // Track processed power structures so each building counts once (by buildingId when available)
     const processedPowerPlants = new Set();
+    const processedPowerBuildings = new Set();
     
     for (let y=0; y<GR_SZ; y++) {
       for (let x=0; x<GR_SZ; x++) {
         const c = st.grid[y][x];
         
-        // Count power plants by buildingId only
-        if ((c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind') && c.buildingId) {
-          if (!processedPowerPlants.has(c.buildingId)) {
-            processedPowerPlants.add(c.buildingId);
-            if (c.type === 'coal') {
-              coalGen += POWER_GENERATION.coal;
-              coalCount++;
-              totalPowerGeneration += POWER_GENERATION.coal;
-            } else if (c.type === 'nuclear') {
-              nuclearGen += POWER_GENERATION.nuclear;
-              nuclearCount++;
-              totalPowerGeneration += POWER_GENERATION.nuclear;
-            } else if (c.type === 'wind') {
-              windGen += POWER_GENERATION.wind;
-              windCount++;
-              totalPowerGeneration += POWER_GENERATION.wind;
+          if (c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind') {
+            const plantKey=getBuildingPowerKey(x,y);
+            if (plantKey && !processedPowerPlants.has(plantKey)) {
+              processedPowerPlants.add(plantKey);
+              if (c.type === 'coal') {
+                coalGen += POWER_GENERATION.coal;
+                coalCount++;
+                totalPowerGeneration += POWER_GENERATION.coal;
+              } else if (c.type === 'nuclear') {
+                nuclearGen += POWER_GENERATION.nuclear;
+                nuclearCount++;
+                totalPowerGeneration += POWER_GENERATION.nuclear;
+              } else if (c.type === 'wind') {
+                windGen += POWER_GENERATION.wind;
+                windCount++;
+                totalPowerGeneration += POWER_GENERATION.wind;
+              }
             }
           }
-        }
         
         if (c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') {
+            const buildingKey=getBuildingPowerKey(x,y);
+            if (!buildingKey || processedPowerBuildings.has(buildingKey)) continue;
+            processedPowerBuildings.add(buildingKey);
           const level = c.level || 0;
           const consumption = getPowerConsumption(c.type, level);
           totalPowerConsumption += consumption;
@@ -3771,63 +3817,33 @@ function calculatePowerGrid() {
     }
   }
   
-  if (powerPlants.length === 0) return;
+  const distanceGrid = [];
+  for (let y=0; y<GR_SZ; y++) {
+    const row = [];
+    for (let x=0; x<GR_SZ; x++) row.push(Infinity);
+    distanceGrid.push(row);
+  }
   
-  // BFS from each power plant along roads
   const visited = new Set();
   const queue = [];
+  const poweredRoads = [];
   
-  // Start BFS from each power plant's adjacent road tiles
-  for (const plant of powerPlants) {
-    // Check adjacent tiles for roads
-    for (let dy=-1; dy<=1; dy++) {
-      for (let dx=-1; dx<=1; dx++) {
-        if (dx===0 && dy===0) continue;
-        const nx = plant.x + dx, ny = plant.y + dy;
-        if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-          if (st.grid[ny][nx].type === 'road') {
-            const key = `${nx},${ny}`;
-            if (!visited.has(key)) {
-              visited.add(key);
-              queue.push({x: nx, y: ny});
-              st.powerGrid[ny][nx] = true;
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  // BFS along road network
-  while (queue.length > 0) {
-    const current = queue.shift();
-    
-    // Check all 4 directions (up, down, left, right)
-    const directions = [[0,-1], [0,1], [-1,0], [1,0]];
-    for (const [dx, dy] of directions) {
-      const nx = current.x + dx, ny = current.y + dy;
-      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-        const key = `${nx},${ny}`;
-        if (!visited.has(key) && st.grid[ny][nx].type === 'road') {
-          visited.add(key);
-          queue.push({x: nx, y: ny});
-          st.powerGrid[ny][nx] = true;
-        }
-      }
-    }
-  }
-  
-  // Mark all tiles adjacent to powered roads as powered
-  for (let y=0; y<GR_SZ; y++) {
-    for (let x=0; x<GR_SZ; x++) {
-      if (st.powerGrid[y][x]) {
-        // Check adjacent tiles (including diagonals)
-        for (let dy=-1; dy<=1; dy++) {
-          for (let dx=-1; dx<=1; dx++) {
-            const nx = x + dx, ny = y + dy;
-            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-              if (!st.powerGrid[ny][nx]) {
+  if (powerPlants.length > 0) {
+    // Start BFS from each power plant's adjacent road tiles
+    for (const plant of powerPlants) {
+      for (let dy=-1; dy<=1; dy++) {
+        for (let dx=-1; dx<=1; dx++) {
+          if (dx===0 && dy===0) continue;
+          const nx = plant.x + dx, ny = plant.y + dy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            if (st.grid[ny][nx].type === 'road') {
+              const key = `${nx},${ny}`;
+              if (!visited.has(key)) {
+                visited.add(key);
+                queue.push({x: nx, y: ny, distance: 1});
+                poweredRoads.push({x: nx, y: ny});
                 st.powerGrid[ny][nx] = true;
+                distanceGrid[ny][nx] = 1;
               }
             }
           }
@@ -3835,13 +3851,140 @@ function calculatePowerGrid() {
       }
     }
   }
+  
+  const directions = [[0,-1], [0,1], [-1,0], [1,0]];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    for (const [dx, dy] of directions) {
+      const nx = current.x + dx, ny = current.y + dy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+        const key = `${nx},${ny}`;
+        if (!visited.has(key) && st.grid[ny][nx].type === 'road') {
+          visited.add(key);
+          const nextDistance = current.distance + 1;
+          queue.push({x: nx, y: ny, distance: nextDistance});
+          poweredRoads.push({x: nx, y: ny});
+          st.powerGrid[ny][nx] = true;
+          distanceGrid[ny][nx] = nextDistance;
+        }
+      }
+    }
+  }
+  
+  for (const road of poweredRoads) {
+    // Mark tiles adjacent to powered roads (including diagonals)
+    for (let dy=-1; dy<=1; dy++) {
+      for (let dx=-1; dx<=1; dx++) {
+        const nx = road.x + dx, ny = road.y + dy;
+        if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+          if (!st.powerGrid[ny][nx]) {
+            st.powerGrid[ny][nx] = true;
+          }
+        }
+      }
+    }
+  }
+  
+  updateBuildingPowerAssignments(distanceGrid);
 }
 
-function hasPowerAccess(x,y) {
-  // Check if building at (x,y) has power access
-  // Power flows via roads, so check if any adjacent tile is powered
-  const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
+function getNearestPoweredRoadDistance(x,y,w,h,distanceGrid) {
+  let minDistance=Infinity;
+  for (let dy=0; dy<h; dy++) {
+    for (let dx=0; dx<w; dx++) {
+      const cx=x+dx, cy=y+dy;
+      for (let ndy=-1; ndy<=1; ndy++) {
+        for (let ndx=-1; ndx<=1; ndx++) {
+          if (ndx===0 && ndy===0) continue;
+          const nx=cx+ndx, ny=cy+ndy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            const neighbor=st.grid[ny][nx];
+            if (neighbor && neighbor.type==='road') {
+              const distance=distanceGrid[ny][nx];
+              if (Number.isFinite(distance)) {
+                minDistance=Math.min(minDistance,distance);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return minDistance;
+}
+
+function updateBuildingPowerAssignments(distanceGrid) {
+  const assignments={};
+  const processedPowerPlants=new Set();
+  const buildingCandidates=[];
+  const processedConsumerBuildings=new Set();
+  let totalPowerGeneration=0;
+  
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const cell=st.grid[y][x];
+      if (!cell) continue;
+      
+      if ((cell.type==='coal'||cell.type==='nuclear'||cell.type==='wind')) {
+        if (!isTopLeftCell(x,y)) continue;
+        const plantKey=getBuildingPowerKey(x,y);
+        if (plantKey && !processedPowerPlants.has(plantKey)) {
+          processedPowerPlants.add(plantKey);
+          totalPowerGeneration+=POWER_GENERATION[cell.type]||0;
+        }
+        continue;
+      }
+      
+      if (!(cell.type==='residential'||cell.type==='commercial'||cell.type==='industrial')) continue;
+      const key=getBuildingPowerKey(x,y);
+      if (!key || processedConsumerBuildings.has(key)) continue;
+      processedConsumerBuildings.add(key);
+
+      const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
+      const baseCell=st.grid[startY]?.[startX];
+      if (!baseCell) continue;
+      const consumption=getPowerConsumption(baseCell.type,baseCell.level||0);
+      if (consumption<=0) {
+        assignments[key]=true;
+        continue;
+      }
+      if (!hasPowerConnectivity(startX,startY)) {
+        assignments[key]=false;
+        continue;
+      }
+      const distance=getNearestPoweredRoadDistance(startX,startY,baseCell.w||1,baseCell.h||1,distanceGrid);
+      buildingCandidates.push({key,consumption,distance:Number.isFinite(distance)?distance:Infinity});
+    }
+  }
+  
+  buildingCandidates.sort((a,b)=>{
+    const aFinite=Number.isFinite(a.distance);
+    const bFinite=Number.isFinite(b.distance);
+    if (aFinite && bFinite && a.distance!==b.distance) return a.distance-b.distance;
+    if (aFinite!==bFinite) return aFinite?-1:1;
+    return a.consumption-b.consumption;
+  });
+  
+  let remainingPower=totalPowerGeneration;
+  for (const candidate of buildingCandidates) {
+    if (!Number.isFinite(candidate.distance)) {
+      assignments[candidate.key]=false;
+      continue;
+    }
+    if (candidate.consumption<=remainingPower) {
+      assignments[candidate.key]=true;
+      remainingPower-=candidate.consumption;
+    } else {
+      assignments[candidate.key]=false;
+    }
+  }
+  
+  st.buildingPowerAssignments=assignments;
+}
+
+function hasPowerConnectivity(x,y) {
   if (!st.powerGrid || st.powerGrid.length !== GR_SZ) return false;
+  const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
   
   for (let dy=0; dy<h; dy++) {
     for (let dx=0; dx<w; dx++) {
@@ -3859,6 +4002,22 @@ function hasPowerAccess(x,y) {
     }
   }
   return false;
+}
+
+function hasPowerAccess(x,y) {
+  const cell=st.grid[y][x];
+  if (!cell) return false;
+  const needsPower=getPowerConsumption(cell.type,cell.level||0)>0;
+  if (!needsPower) return true;
+  if (!hasPowerConnectivity(x,y)) return false;
+  const assignments=st.buildingPowerAssignments;
+  if (assignments) {
+    const key=getBuildingPowerKey(x,y);
+    if (key && Object.prototype.hasOwnProperty.call(assignments,key)) {
+      return !!assignments[key];
+    }
+  }
+  return true;
 }
 
 function hasSchoolCoverage(x,y) {
@@ -3987,7 +4146,6 @@ async function genNws() {
     nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
   } catch(e) { console.error('News generation error:',e); } finally { aiReq=false; }
 }
-
 function tryMrgPark(x,y) {
   const c=st.grid[y][x]; if (!c||!c.type.startsWith('park')) return false;
   if (!isTopLeftCell(x,y)) return false;
@@ -4474,10 +4632,9 @@ function startCrimeEvent() {
     nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
   }
 }
-
 function simTk() {
   st.tickCount++; st.ticksSinceNews++;
-  if (st.tickCount%12===0) {
+  if (st.tickCount % TICKS_PER_YEAR === 0) {
     st.year++;
     // Clean up old event messages and AI news every year
     cleanupNewsEvents();
@@ -4564,13 +4721,8 @@ function simTk() {
       const lv=st.landValue[y][x], hr=hasRdAcc(x,y), mv=c.type==='industrial'?10:20;
       const level = c.level || 0;
       
-      // Check power requirements
-      let needsPower = false;
-      if (c.type === 'residential' && (level === 2 || level === 3)) {
-        needsPower = true;
-      } else if (c.type === 'commercial' || c.type === 'industrial') {
-        needsPower = true;
-      }
+        // Check power requirements
+        const needsPower = getPowerConsumption(c.type, level) > 0;
       
       const hasPower = hasPowerAccess(x, y);
       
