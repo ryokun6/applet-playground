@@ -235,6 +235,15 @@
       <button id="closeAiBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
     </div>
   </div>
+  <!-- Building info panel for stat view -->
+  <div id="buildingInfoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 flex-shrink-0">
+    <div class="flex items-start gap-2">
+      <div class="flex-1">
+        <div id="buildingInfoTitle" class="text-sm font-bold text-white mb-2"></div>
+        <div id="buildingInfoContent" class="text-xs text-neutral-300 space-y-1"></div>
+      </div>
+    </div>
+  </div>
 
   <div id="infoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 max-h-48 overflow-y-auto flex-shrink-0">
     <div class="flex items-start gap-2 mb-2">
@@ -245,6 +254,8 @@
       <button id="closeInfoBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
     </div>
   </div>
+
+
 
   <div class="border-t border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-neutral-400 flex items-center justify-between flex-shrink-0">
     <div id="statusText">select a tool to start building</div>
@@ -277,10 +288,13 @@ let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTm
 const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000};
 const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
 const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
+const STATION_MAX_ACTIVE = 2;
 
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1,disastersEnabled:true};
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{}};
+let nextBuildingId = 1;
 let showLandValueOverlay = false;
 let showCrimeOverlay = false;
+let highlightedBuilding = null; // {x, y, w, h} of highlighted building
 
 const cvs = document.getElementById('canvas'), ctx = cvs.getContext('2d');
 cvs.width = GR_SZ * CL_SZ; cvs.height = GR_SZ * CL_SZ;
@@ -342,15 +356,15 @@ function normalizeEmptyCell(x,y) {
   if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return;
   const c=st.grid[y][x];
   if (c.type==='empty' && ((c.w||1)!==1 || (c.h||1)!==1)) {
-    st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1};
+    st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
   }
 }
 
 function initGr(tt='balanced') {
-  st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[];
+  st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[]; st.stationDispatches={};
   for (let y=0; y<GR_SZ; y++) {
     const r=[], vr=[], cr=[];
-    for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1}); vr.push(50); cr.push(30); }
+    for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); }
     st.grid.push(r); st.landValue.push(vr); st.crime.push(cr);
   }
 }
@@ -361,13 +375,19 @@ function ld() {
     const s=localStorage.getItem('simcity_state');
     if (s) {
       const p=JSON.parse(s);
-      if (p.grid && p.grid.length===GR_SZ) {
+        if (p.grid && p.grid.length===GR_SZ) {
         st=p;
         if (!st.rDemand) st.rDemand=50; if (!st.cDemand) st.cDemand=50; if (!st.iDemand) st.iDemand=50;
         if (!st.year) st.year=1990; if (!st.newsEvents) st.newsEvents=[]; if (!st.ticksSinceNews) st.ticksSinceNews=0;
         if (!st.terrain) st.terrain=genTerr('balanced'); if (!st.landValue) { st.landValue=[]; for (let y=0; y<GR_SZ; y++) { const vr=[]; for (let x=0; x<GR_SZ; x++) vr.push(50); st.landValue.push(vr); } }
         if (!st.crime) { st.crime=[]; for (let y=0; y<GR_SZ; y++) { const cr=[]; for (let x=0; x<GR_SZ; x++) cr.push(30); st.crime.push(cr); } }
-        if (!st.fires) st.fires=[]; if (!st.employment) st.employment=0; if (!st.cars) st.cars=[]; if (!st.crimeEvents) st.crimeEvents=[];
+          if (!st.fires) st.fires=[]; if (!st.employment) st.employment=0; if (!st.cars) st.cars=[]; if (!st.crimeEvents) st.crimeEvents=[];
+          st.stationDispatches={};
+          if (st.cars && st.cars.length>0) {
+            st.cars.forEach(car => {
+              if (car.stationKey) incrementStationDispatchCount(car.stationKey);
+            });
+          }
         if (!st.zoom) st.zoom=1;
         if (st.disastersEnabled === undefined) st.disastersEnabled = true;
         for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) { 
@@ -377,6 +397,9 @@ function ld() {
           // Normalize empty cells to ensure they're always 1x1
           if (st.grid[y][x].type==='empty') normalizeEmptyCell(x,y);
         }
+
+        // Rebuild buildingId metadata after loading to ensure consistent grouping
+        rebuildBuildingIdsFromGrid();
         return true;
       }
     }
@@ -445,7 +468,7 @@ function drTl(x,y,tp,lv,ab,w,h) {
       const sz=w===2&&h===2?(lv===3?wd-3:(lv===2?wd-3.5:wd-4)):w===2?wd-4:(lv===1?8:(lv===3?10:10));
       const of=w===2&&h===2?(lv===3?1.5:(lv===2?1.75:2)):w===2?2:(lv===1?4:(lv===3?3:3));
       const bh=w===2&&h===2?(lv===3?ht-4:(lv===2?ht-5:ht-7)):w===2?ht-7:(lv===1?8:(lv===3?12:(lv===2?14:11)));
-      const yo=w===2&&h===2?(lv===3?3:(lv===2?4:6)):w===1&&h===1?(lv===3?2:(lv===2?1:6)):6;
+      const yo=w===2&&h===2?(lv===3?3:(lv===2?4:6)):w===1&&h===1?(lv===3?2:(lv===2?1:7)):6;
       ctx.fillStyle=w===2&&h===2?(lv===3?'#22c55e':(lv===2?'#16a34a':'#15803d')):w===2?'#16a34a':(lv===3?'#1a9e4a':(lv===2?'#16a34a':'#15803d')); 
       ctx.fillRect(px+of,py+yo,sz,bh);
       ctx.fillStyle=w===2&&h===2?(lv===3?'#16a34a':(lv===2?'#15803d':'#166534')):w===2?'#15803d':(lv===3?'#15803d':'#15803d'); 
@@ -473,8 +496,31 @@ function drTl(x,y,tp,lv,ab,w,h) {
         ctx.fillRect(px+9,wy,2,2);
       }
       ctx.fillStyle='#166534'; 
-      ctx.fillRect(px+6,py+ht-3,3,3); 
+      if (w===1&&h===1&&lv===1) {
+        ctx.fillRect(px+7,py+ht-3,2,3);
+      } else if (w===1&&h===2) {
+        // For 1x2 buildings, position door at bottom of building, centered
+        ctx.fillRect(px+7,py+yo+bh-3,2,3);
+      } else {
+        ctx.fillRect(px+6,py+ht-3,3,3); 
+      }
       if (w===2) ctx.fillRect(px+21,py+ht-3,3,3);
+      // Add yard decorations for 1x2 tiles
+      if (w===1&&h===2&&!ab) {
+        ctx.fillStyle='#15803d';
+        ctx.fillRect(px+3,py+ht-6,2,2); // Small bush left
+        ctx.fillRect(px+11,py+ht-6,2,2); // Small bush right
+        // Add more for higher levels
+        if (lv>=2) {
+          ctx.fillStyle='#16a34a';
+          ctx.fillRect(px+1,py+ht-8,2,2); // Extra bush left
+          ctx.fillRect(px+13,py+ht-8,2,2); // Extra bush right
+        }
+        if (lv>=3) {
+          ctx.fillStyle='#4ade80';
+          ctx.fillRect(px+7,py+ht-7,2,1); // Accent center
+        }
+      }
     }
   } else if (tp==='commercial') {
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
@@ -497,19 +543,19 @@ function drTl(x,y,tp,lv,ab,w,h) {
       if (w===2) ctx.fillRect(px+20,py+Math.floor(4+bh*0.4),3,3); 
     }
     else {
-      // For 2x2 buildings, grow taller with level
-      const bh=w===2&&h===2?(lv===3?ht-1:(lv===2?ht-2:ht-3)):w===2||h===2?ht-3:(lv===1?9:(lv===2?11:13));
-      const yo=w===2&&h===2?(lv===3?1:(lv===2?1.5:2)):w===2||h===2?2:(lv===1?4:(lv===2?2:1));
+      // For 2x2 buildings, make them grow taller with level
+      const bh=w===2&&h===2?(lv===3?ht-4:(lv===2?ht-5:ht-9)):w===2||h===2?ht-3:(lv===1?9:(lv===2?11:13));
+      const yo=w===2&&h===2?(lv===3?3:(lv===2?4:8)):w===2||h===2?2:(lv===1?6:(lv===2?2:1));
       ctx.fillStyle=w===2&&h===2?(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')):w===2||h===2?'#2563eb':(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')); 
-      ctx.fillRect(px+2,py+yo+1,wd-4,bh);
-      ctx.fillStyle=w===2&&h===2?(lv===3?'#2563eb':(lv===2?'#1e40af':'#1e40af')):w===2||h===2?'#1e40af':(lv===3?'#2563eb':'#1e40af'); 
-      ctx.fillRect(px+2,py+yo+1,wd-4,Math.floor(bh*0.25));
+      ctx.fillRect(px+2,py+yo,wd-4,bh);
+      ctx.fillStyle=w===2&&h===2?(lv===3?'#2563eb':(lv===2?'#1e40af':'#1d4ed8')):w===2||h===2?'#1e40af':(lv===3?'#2563eb':'#1e40af'); 
+      ctx.fillRect(px+2,py+yo,wd-4,Math.floor(bh*0.25));
       ctx.fillStyle='#87ceeb';
-      const wh=3, ww=3;
-      const floors=w===2&&h===2?(lv===3?5:(lv===2?4:3)):w===2&&h===1?1:(w===2||h===2?2:1);
+      const wh=3, ww=3, gap=1;
+      const floors=w===2&&h===2?(lv===3?3:(lv===2?3:1)):w===2&&h===1?1:(w===2||h===2?2:1);
       const winStart=w===2&&h===2?0.35:0.4;
       for (let f=0; f<floors; f++) {
-        const wy = py+Math.floor((yo+1)+bh*winStart)+(f*5);
+        const wy = py+Math.floor(yo+bh*winStart)+(f*(wh+gap+1));
         ctx.fillRect(px+4,wy,ww,wh); 
         ctx.fillRect(px+9,wy,ww,wh);
         if (w===2) { 
@@ -672,16 +718,13 @@ function drTl(x,y,tp,lv,ab,w,h) {
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
     ctx.fillStyle='#daa520'; ctx.fillRect(px+2,py+4,12,10); 
     ctx.fillStyle='#b8860b'; ctx.fillRect(px+2,py+4,12,4); 
-    ctx.fillStyle='#87ceeb'; ctx.fillRect(px+4,py+7,3,3); ctx.fillRect(px+9,py+7,3,3); 
-    ctx.fillStyle='#8b4513'; ctx.fillRect(px+6,py+11,4,3); 
-    ctx.fillStyle='#000000'; ctx.fillRect(px+7,py+8,2,1); 
+    ctx.fillStyle='#87ceeb'; ctx.fillRect(px+9,py+10,3,3); 
+    ctx.fillStyle='#8b4513'; ctx.fillRect(px+4,py+11,3,3); 
   }
   else if (tp==='hospital') { 
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
-    ctx.fillStyle='#dc143c'; ctx.fillRect(px+2,py+4,12,10); 
-    ctx.fillStyle='#c01030'; ctx.fillRect(px+2,py+4,12,4); 
-    ctx.fillStyle='#87ceeb'; ctx.fillRect(px+4,py+7,3,3); ctx.fillRect(px+9,py+7,3,3); 
-    ctx.fillStyle='#ffffff'; ctx.fillRect(px+7,py+5,2,5); ctx.fillRect(px+5,py+7,6,1); 
+    ctx.fillStyle='#d1d5db'; ctx.fillRect(px+2,py+4,12,10); 
+    ctx.fillStyle='#ff0000'; ctx.fillRect(px+7,py+5,2,5); ctx.fillRect(px+5,py+6,6,2); 
     ctx.fillStyle='#4a4a4a'; ctx.fillRect(px+6,py+11,4,3); 
   }
   ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=0.5; ctx.strokeRect(px,py,wd,ht);
@@ -696,21 +739,207 @@ function drGr() {
   }
   if (showLandValueOverlay) drawLandValueOverlay();
   if (showCrimeOverlay) drawCrimeOverlay();
+  
+  // Draw highlighted building border
+  if (highlightedBuilding) {
+    ctx.save();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      highlightedBuilding.x * CL_SZ + 1,
+      highlightedBuilding.y * CL_SZ + 1,
+      highlightedBuilding.w * CL_SZ - 2,
+      highlightedBuilding.h * CL_SZ - 2
+    );
+    ctx.restore();
+  }
+  
   st.fires.forEach(f => {
     if (f.age<20) {
-      ctx.fillStyle=f.age%4<2?'#ff4500':'#ffd700';
-      ctx.fillRect(f.x*CL_SZ+4,f.y*CL_SZ+2,8,12);
+      const fx = f.x * CL_SZ;
+      const fy = f.y * CL_SZ;
+      const anim = f.age % 6;
+      
+      ctx.save();
+      // Draw multiple flame shapes for a more fire-like appearance
+      // Base flame (orange/red)
+      ctx.fillStyle = anim < 3 ? '#ff4500' : '#ff6600';
+      ctx.beginPath();
+      ctx.moveTo(fx + 4, fy + 14);
+      ctx.lineTo(fx + 6, fy + 10);
+      ctx.lineTo(fx + 5, fy + 8);
+      ctx.lineTo(fx + 7, fy + 6);
+      ctx.lineTo(fx + 6, fy + 4);
+      ctx.lineTo(fx + 8, fy + 2);
+      ctx.lineTo(fx + 10, fy + 4);
+      ctx.lineTo(fx + 9, fy + 6);
+      ctx.lineTo(fx + 11, fy + 8);
+      ctx.lineTo(fx + 10, fy + 10);
+      ctx.lineTo(fx + 12, fy + 14);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Middle flame (yellow/orange)
+      ctx.fillStyle = anim < 3 ? '#ff8800' : '#ffaa00';
+      ctx.beginPath();
+      ctx.moveTo(fx + 5, fy + 12);
+      ctx.lineTo(fx + 6.5, fy + 9);
+      ctx.lineTo(fx + 6, fy + 7);
+      ctx.lineTo(fx + 7.5, fy + 5);
+      ctx.lineTo(fx + 7, fy + 3);
+      ctx.lineTo(fx + 9, fy + 3);
+      ctx.lineTo(fx + 8.5, fy + 5);
+      ctx.lineTo(fx + 10, fy + 7);
+      ctx.lineTo(fx + 9.5, fy + 9);
+      ctx.lineTo(fx + 11, fy + 12);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Top flame (yellow/white)
+      ctx.fillStyle = anim < 2 ? '#ffd700' : (anim < 4 ? '#ffff00' : '#ffaa00');
+      ctx.beginPath();
+      ctx.moveTo(fx + 7, fy + 10);
+      ctx.lineTo(fx + 7.5, fy + 7);
+      ctx.lineTo(fx + 7.2, fy + 5);
+      ctx.lineTo(fx + 8, fy + 3);
+      ctx.lineTo(fx + 8.8, fy + 5);
+      ctx.lineTo(fx + 8.5, fy + 7);
+      ctx.lineTo(fx + 9, fy + 10);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Small sparks/flickers
+      ctx.fillStyle = '#ffff00';
+      ctx.fillRect(fx + 6 + (anim % 3), fy + 4, 1, 1);
+      ctx.fillRect(fx + 9 - (anim % 2), fy + 5, 1, 1);
+      
+      ctx.restore();
     }
   });
   st.crimeEvents.forEach(evt => {
     if (evt.age<20) {
-      ctx.fillStyle=evt.age%4<2?'#dc143c':'#ff0000';
-      ctx.fillRect(evt.x*CL_SZ+5,evt.y*CL_SZ+3,6,10);
+      const cx = evt.x * CL_SZ;
+      const cy = evt.y * CL_SZ;
+      const anim = evt.age % 4;
+      
+      ctx.save();
+      
+      // Draw pulsing circle (siren effect)
+      const pulseSize = anim < 2 ? 1 : 0.7;
+      ctx.fillStyle = anim < 2 ? 'rgba(220, 20, 60, 0.6)' : 'rgba(255, 0, 0, 0.4)';
+      ctx.beginPath();
+      ctx.arc(cx + 8, cy + 8, 6 * pulseSize, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw siren light (alternating red/blue)
+      ctx.fillStyle = anim < 2 ? '#dc143c' : '#0066ff';
+      ctx.beginPath();
+      ctx.arc(cx + 8, cy + 8, 3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw exclamation mark
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx + 7.5, cy + 6, 1, 3);
+      ctx.fillRect(cx + 7.5, cy + 10, 1, 1);
+      
+      // Draw light rays
+      if (anim < 2) {
+        ctx.strokeStyle = 'rgba(220, 20, 60, 0.5)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 8; i++) {
+          const angle = (i * Math.PI / 4) + (evt.age * 0.3);
+          ctx.beginPath();
+          ctx.moveTo(cx + 8, cy + 8);
+          ctx.lineTo(cx + 8 + Math.cos(angle) * 8, cy + 8 + Math.sin(angle) * 8);
+          ctx.stroke();
+        }
+      }
+      
+      ctx.restore();
     }
   });
   st.cars.forEach(c => {
-    ctx.fillStyle=c.color;
-    ctx.fillRect(c.x,c.y,3,2);
+    ctx.save();
+    
+    // Determine car direction for rotation
+    let angle = 0; // Default: horizontal (0 degrees)
+    if (c.path && c.path.length > 1 && c.pathIdx < c.path.length - 1) {
+      const curNode = c.path[c.pathIdx];
+      const nextNode = c.path[c.pathIdx + 1];
+      const dx = nextNode.x - curNode.x;
+      const dy = nextNode.y - curNode.y;
+      
+      // If moving vertically (more vertical than horizontal), rotate 90 degrees
+      if (Math.abs(dy) > Math.abs(dx)) {
+        angle = Math.PI / 2; // 90 degrees
+      }
+    } else if (c.entering && c.entryTarget) {
+      // Check direction to entry target
+      const dx = c.entryTarget.x - c.x;
+      const dy = c.entryTarget.y - c.y;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        angle = Math.PI / 2;
+      }
+    } else if (c.exiting && c.exitTarget) {
+      // Check direction to exit target
+      const dx = c.exitTarget.x - c.x;
+      const dy = c.exitTarget.y - c.y;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        angle = Math.PI / 2;
+      }
+    } else if (c.path && c.path.length > 0 && c.pathIdx < c.path.length) {
+      // Fallback: check movement direction from current position
+      const nextTarget = getCarSegmentTarget(c);
+      if (nextTarget) {
+        const dx = nextTarget.tx - c.x;
+        const dy = nextTarget.ty - c.y;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          angle = Math.PI / 2;
+        }
+      }
+    }
+    
+    // Translate to car center, rotate, then translate back
+    let carWidth = 3, carHeight = 2;
+    if (c.type === 'fire') {
+      carWidth = 7; // Fire trucks are longer
+      carHeight = 4;
+    } else if (c.type === 'police') {
+      carWidth = 5;
+      carHeight = 4;
+    }
+    const carCenterX = c.x + carWidth / 2;
+    const carCenterY = c.y + carHeight / 2;
+    ctx.translate(carCenterX, carCenterY);
+    ctx.rotate(angle);
+    ctx.translate(-carCenterX, -carCenterY);
+    
+    // Draw emergency vehicles with special styling
+    if (c.type === 'police') {
+      // Police car: dark gray body with single red/blue siren
+      ctx.fillStyle = '#1a1a1a'; // Very dark gray, almost black
+      ctx.fillRect(c.x-1, c.y-1, 5, 4);
+      // Single red/blue alternating siren on top center
+      const time = Date.now() / 200; // Blinking effect
+      const redOn = Math.floor(time) % 2 === 0;
+      ctx.fillStyle = redOn ? '#ff0000' : '#0066ff'; // Red or blue
+      ctx.fillRect(Math.floor(c.x)+1, c.y-1, 2, 1); // Top center siren (2px wide)
+    } else if (c.type === 'fire') {
+      // Fire truck: longer body with single side-mounted flashing siren
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(c.x-2, c.y-1, 7, 4); // Longer: 7x4 instead of 5x4
+      // Single side siren (left side) alternating red/yellow
+      const time = Date.now() / 200; // Blinking effect
+      const redOn = Math.floor(time) % 2 === 0;
+      ctx.fillStyle = redOn ? '#ff0000' : '#ffff00';
+      ctx.fillRect(c.x-2, c.y, 1, 2); // Vertical bar on left side
+    } else {
+      // Regular cars
+      ctx.fillStyle=c.color;
+      ctx.fillRect(c.x, c.y, 3, 2);
+    }
+    
+    ctx.restore();
   });
 }
 
@@ -741,11 +970,27 @@ function setLandValueOverlay(active) {
     showLandValueOverlay=true;
     updLV();
     drGr();
+    // Update status text to indicate stats mode
+    const sTx = document.getElementById('statusText');
+    sTx.textContent = 'click buildings to view details';
     return;
   }
   if (showLandValueOverlay) {
     showLandValueOverlay=false;
+    hideBuildingInfo();
     drGr();
+    // Restore status text
+    const sTx = document.getElementById('statusText');
+    if (st.selectedTool) {
+      const tl = st.selectedTool;
+      if (tl === 'bulldoze') sTx.textContent = 'click to demolish buildings';
+      else {
+        const dn = tl.startsWith('park') ? 'park' : tl;
+        sTx.textContent = `placing ${dn}`;
+      }
+    } else {
+      sTx.textContent = 'select a tool to start building';
+    }
   }
 }
 
@@ -793,22 +1038,38 @@ function setCrimeOverlay(active) {
     showCrimeOverlay=true;
     updCrime();
     drGr();
+    // Update status text to indicate stats mode
+    const sTx = document.getElementById('statusText');
+    sTx.textContent = 'click buildings to view details';
     return;
   }
   if (showCrimeOverlay) {
     showCrimeOverlay=false;
+    hideBuildingInfo();
     drGr();
+    // Restore status text
+    const sTx = document.getElementById('statusText');
+    if (st.selectedTool) {
+      const tl = st.selectedTool;
+      if (tl === 'bulldoze') sTx.textContent = 'click to demolish buildings';
+      else {
+        const dn = tl.startsWith('park') ? 'park' : tl;
+        sTx.textContent = `placing ${dn}`;
+      }
+    } else {
+      sTx.textContent = 'select a tool to start building';
+    }
   }
 }
 
-function findPath(sx,sy,ex,ey) {
+function findPath(sx,sy,ex,ey, maxLength=50) {
   const q=[{x:sx,y:sy,path:[{x:sx,y:sy}]}], vis=new Set();
   while(q.length>0) {
     const cur=q.shift(), k=`${cur.x},${cur.y}`;
     if (vis.has(k)) continue;
     vis.add(k);
     if (cur.x===ex && cur.y===ey) return cur.path;
-    if (cur.path.length>50) continue;
+    if (cur.path.length>maxLength) continue;
     const dirs=[[0,-1],[1,0],[0,1],[-1,0]];
     for (const [dx,dy] of dirs) {
       const nx=cur.x+dx, ny=cur.y+dy;
@@ -821,7 +1082,346 @@ function findPath(sx,sy,ex,ey) {
   }
   return null;
 }
+
+function ensureStationDispatchMap() {
+  if (!st.stationDispatches) st.stationDispatches={};
+}
+
+function getStationKeyFromCoords(x,y) {
+  return `${x},${y}`;
+}
+
+function getStationDispatchCount(key) {
+  ensureStationDispatchMap();
+  return st.stationDispatches[key]||0;
+}
+
+function incrementStationDispatchCount(key) {
+  ensureStationDispatchMap();
+  st.stationDispatches[key]=(st.stationDispatches[key]||0)+1;
+}
+
+function releaseStationSlot(car) {
+  if (!car || !car.stationKey) return;
+  ensureStationDispatchMap();
+  if (st.stationDispatches[car.stationKey]) {
+    st.stationDispatches[car.stationKey]--;
+    if (st.stationDispatches[car.stationKey]<0) st.stationDispatches[car.stationKey]=0;
+  }
+  car.stationKey=null;
+}
+
+function getCurrentRoadNode(car) {
+  if (car && car.path && car.path[car.pathIdx]) return car.path[car.pathIdx];
+  if (car && car.sceneRoad) return car.sceneRoad;
+  if (car && car.stationRoad) return car.stationRoad;
+  return null;
+}
+
+function findNearestStation(targetX, targetY, stationType) {
+  // Find nearest road to target location
+  const targetRoads = [];
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const nx = targetX + dx, ny = targetY + dy;
+      if (nx >= 0 && nx < GR_SZ && ny >= 0 && ny < GR_SZ) {
+        if (st.grid[ny][nx].type === 'road') {
+          targetRoads.push({x: nx, y: ny});
+        }
+      }
+    }
+  }
+  if (targetRoads.length === 0) return null;
   
+  // Find all stations of the requested type
+  const stations = [];
+  for (let y = 0; y < GR_SZ; y++) {
+    for (let x = 0; x < GR_SZ; x++) {
+      const c = st.grid[y][x];
+      if (c.type === stationType && hasRdAcc(x, y)) {
+        // Find nearest road to this station
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < GR_SZ && ny >= 0 && ny < GR_SZ) {
+              if (st.grid[ny][nx].type === 'road') {
+                stations.push({stationX: x, stationY: y, roadX: nx, roadY: ny});
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  if (stations.length === 0) return null;
+  
+  // Find nearest station by pathfinding distance
+  let nearestStation = null;
+  let minDistance = Infinity;
+  
+  // Use a more efficient search - limit pathfinding to reasonable distances for emergency dispatch
+  for (const station of stations) {
+    // Quick distance check first (Manhattan distance) to skip obviously too far stations
+    const stationKey = getStationKeyFromCoords(station.stationX, station.stationY);
+    if (getStationDispatchCount(stationKey) >= STATION_MAX_ACTIVE) continue;
+    for (const targetRoad of targetRoads) {
+      const manhattanDist = Math.abs(station.roadX - targetRoad.x) + Math.abs(station.roadY - targetRoad.y);
+      if (manhattanDist > 100) continue; // Skip stations that are clearly too far
+      
+      const path = findPath(station.roadX, station.roadY, targetRoad.x, targetRoad.y, 100);
+      if (path && path.length < minDistance) {
+        minDistance = path.length;
+        nearestStation = {
+          stationX: station.stationX,
+          stationY: station.stationY,
+          roadX: station.roadX,
+          roadY: station.roadY,
+          targetRoadX: targetRoad.x,
+          targetRoadY: targetRoad.y,
+          path: path
+        };
+        // Early exit if we find a very close station (within 10 tiles)
+        if (path.length <= 10) break;
+      }
+    }
+    if (nearestStation && nearestStation.path && nearestStation.path.length <= 10) break;
+  }
+  
+  return nearestStation;
+}
+
+function dispatchEmergencyVehicle(stationType, targetX, targetY, missionType) {
+  const station = findNearestStation(targetX, targetY, stationType);
+  if (!station || !station.path || station.path.length < 2) return false;
+  const stationKey = getStationKeyFromCoords(station.stationX, station.stationY);
+  if (getStationDispatchCount(stationKey) >= STATION_MAX_ACTIVE) return false;
+  
+  const start = {x: station.roadX, y: station.roadY};
+  const end = {x: station.targetRoadX, y: station.targetRoadY};
+  const path = station.path;
+  
+  // Determine lane offset
+  let laneOffset = 0;
+  const startCenterX = path[0].x * CL_SZ + 7;
+  const startCenterY = path[0].y * CL_SZ + 7;
+  let startX = startCenterX;
+  let startY = startCenterY;
+  
+  if (path.length >= 2) {
+    const dx = path[1].x - path[0].x;
+    const dy = path[1].y - path[0].y;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      laneOffset = dx > 0 ? 5 : -5;
+      startY += laneOffset;
+    } else {
+      laneOffset = dy > 0 ? -5 : 5;
+      startX += laneOffset;
+    }
+  }
+  
+  const stationBuilding = {x: station.stationX, y: station.stationY};
+  const entryDir = getEdgeDirection(stationBuilding, start);
+  let entryTarget = null;
+  let entering = false;
+  let spawnX = startX;
+  let spawnY = startY;
+  
+  if (entryDir.x !== 0 || entryDir.y !== 0) {
+    entering = true;
+    entryTarget = {x: startX, y: startY};
+    if (Math.abs(entryDir.x) >= Math.abs(entryDir.y) && entryDir.x !== 0) {
+      spawnX = startCenterX + entryDir.x * CAR_EDGE_OFFSET;
+      spawnY = startY;
+    } else if (entryDir.y !== 0) {
+      spawnY = startCenterY + entryDir.y * CAR_EDGE_OFFSET;
+      spawnX = startX;
+    }
+  }
+  
+  // Fire trucks: red (will be styled with lights), Police cars: very dark gray (will be styled with lights)
+  const color = stationType === 'fire' ? '#ff0000' : '#1a1a1a';
+  const vehicleType = stationType === 'fire' ? 'fire' : 'police';
+  
+  st.cars.push({
+    x: spawnX,
+    y: spawnY,
+    path: path,
+    pathIdx: 0,
+    color: color,
+    type: vehicleType,
+    laneOffset: laneOffset,
+    reverse: false,
+    entering: entering,
+    entryTarget: entryTarget,
+    exiting: false,
+    exitTarget: null,
+    stationRoad: { x: start.x, y: start.y },
+    sceneRoad: { x: end.x, y: end.y },
+    missionPhase: 'enroute',
+    stationKey: stationKey,
+    stationCoords: { x: station.stationX, y: station.stationY },
+    mission: {
+      type: missionType,
+      targetX: targetX,
+      targetY: targetY,
+      arrived: false,
+      returning: false
+    }
+  });
+  incrementStationDispatchCount(stationKey);
+  
+  return true;
+}
+
+function getRoadCenterCoords(node) {
+  if (!node) return { x: 0, y: 0 };
+  return { x: node.x * CL_SZ + 7, y: node.y * CL_SZ + 7 };
+}
+
+function prepareEmergencyVehicleReturn(car, opts={}) {
+  if (!car || !car.mission || car.mission.returning) return;
+  
+  const startRoad = getCurrentRoadNode(car);
+  const stationRoad = car.stationRoad;
+  if (!startRoad || !stationRoad) {
+    car.removeOnNextTick = true;
+    releaseStationSlot(car);
+    return;
+  }
+  
+  if (!opts.skipSceneDecrement && car.mission.arrived) {
+    if (car.mission.type === 'fire') {
+      const fire = st.fires.find(f => f.x === car.mission.targetX && f.y === car.mission.targetY);
+      if (fire && fire.fireTrucksAtScene>0) fire.fireTrucksAtScene--;
+    } else if (car.mission.type === 'crime') {
+      const crime = st.crimeEvents.find(evt => evt.x === car.mission.targetX && evt.y === car.mission.targetY);
+      if (crime && crime.policeCarsAtScene>0) crime.policeCarsAtScene--;
+    }
+  }
+  
+  const returnPath = findPath(startRoad.x, startRoad.y, stationRoad.x, stationRoad.y, 100);
+  if (!returnPath || returnPath.length<2) {
+    car.removeOnNextTick = true;
+    releaseStationSlot(car);
+    return;
+  }
+  
+  car.path = returnPath;
+  car.pathIdx = 0;
+  car.mission.returning = true;
+  car.mission.arrived = false;
+  car.missionPhase = 'returning';
+  car.entering = true;
+  car.exiting = false;
+  car.exitTarget = null;
+  car.reverse = false;
+  car.holdPosition = null;
+  
+  const startCenter = getRoadCenterCoords(returnPath[0]);
+  car.x = startCenter.x;
+  car.y = startCenter.y;
+  let entryX = startCenter.x;
+  let entryY = startCenter.y;
+  car.laneOffset = 0;
+  if (returnPath.length>=2) {
+    const dx = returnPath[1].x - returnPath[0].x;
+    const dy = returnPath[1].y - returnPath[0].y;
+    if (Math.abs(dx)>Math.abs(dy)) {
+      car.laneOffset = dx>0 ? 5 : -5;
+      entryY += car.laneOffset;
+    } else {
+      car.laneOffset = dy>0 ? -5 : 5;
+      entryX += car.laneOffset;
+    }
+  }
+  car.entryTarget = { x: entryX, y: entryY };
+}
+
+function sendEmergencyVehiclesHome(missionType, targetX, targetY) {
+  st.cars.forEach(car => {
+    if (!car.mission || car.mission.returning) return;
+    if (car.mission.type===missionType && car.mission.targetX===targetX && car.mission.targetY===targetY) {
+      prepareEmergencyVehicleReturn(car);
+    }
+  });
+}
+  
+function attemptMissionArrival(car) {
+  if (!car || !car.mission || car.mission.returning) return false;
+  const buildingTarget = {
+    x: car.mission.targetX * CL_SZ + CL_SZ / 2,
+    y: car.mission.targetY * CL_SZ + CL_SZ / 2
+  };
+  const roadTarget = car.sceneRoad ? getRoadCenterCoords(car.sceneRoad) : null;
+  let minDist = Infinity;
+  let chosen = 'none';
+  [buildingTarget, roadTarget].forEach((pt, idx) => {
+    if (!pt) return;
+    const dx = pt.x - car.x;
+    const dy = pt.y - car.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < minDist) { minDist = dist; chosen = idx===0?'building':'road'; }
+  });
+  if (!isFinite(minDist)) return false;
+  const threshold = CL_SZ * 2.5;
+    if (minDist < threshold) {
+    if (!car.mission.arrived) {
+      car.mission.arrived = true;
+      car.missionPhase = 'onscene';
+        const holdTarget = roadTarget || buildingTarget;
+        if (holdTarget) {
+          car.holdPosition = { x: holdTarget.x, y: holdTarget.y };
+          car.x = car.holdPosition.x;
+          car.y = car.holdPosition.y;
+        } else {
+          car.holdPosition = { x: car.x, y: car.y };
+        }
+      if (!car.arrivalLogged) {
+        if (car.mission.type === 'fire') {
+          const fire = st.fires.find(f => f.x === car.mission.targetX && f.y === car.mission.targetY);
+          if (fire) fire.fireTrucksAtScene = (fire.fireTrucksAtScene || 0) + 1;
+        } else if (car.mission.type === 'crime') {
+          const crime = st.crimeEvents.find(evt => evt.x === car.mission.targetX && evt.y === car.mission.targetY);
+          if (crime) crime.policeCarsAtScene = (crime.policeCarsAtScene || 0) + 1;
+        }
+        car.arrivalLogged = true;
+      }
+    } else if (!car.holdPosition) {
+      car.holdPosition = { x: car.x, y: car.y };
+    }
+    return true;
+  }
+  return false;
+}
+ 
+function countActiveResponders(missionType, targetX, targetY) {
+  if (!st.cars) return 0;
+  return st.cars.reduce((sum, car) => {
+    if (car.mission && !car.mission.returning && car.mission.type===missionType && car.mission.targetX===targetX && car.mission.targetY===targetY) {
+      return sum+1;
+    }
+    return sum;
+  },0);
+}
+
+function ensureEmergencyCoverage() {
+  if (st.fires) {
+    st.fires.forEach(fire => {
+      if (countActiveResponders('fire', fire.x, fire.y)===0) {
+        dispatchEmergencyVehicle('fire', fire.x, fire.y, 'fire');
+      }
+    });
+  }
+  if (st.crimeEvents) {
+    st.crimeEvents.forEach(evt => {
+      if (countActiveResponders('crime', evt.x, evt.y)===0) {
+        dispatchEmergencyVehicle('police', evt.x, evt.y, 'crime');
+      }
+    });
+  }
+}
+ 
 function getEdgeDirection(structCell,roadCell) {
   if (!structCell || !roadCell) return {x:0,y:0};
   const dx=structCell.x-roadCell.x;
@@ -846,20 +1446,9 @@ function spawnCar() {
   if (res.length===0) return;
   
   let tp='normal', src, dst, clr;
-  const r=Math.random();
-  if (r<0.05 && pol.length>0) {
-    tp='police'; src=pol[Math.floor(Math.random()*pol.length)];
-    const opts=[...res,...com,...ind].filter(d=>d.x!==src.x||d.y!==src.y);
-    if (opts.length===0) return;
-    dst=opts[Math.floor(Math.random()*opts.length)];
-    clr='#2196f3';
-  } else if (r<0.1 && fir.length>0) {
-    tp='fire'; src=fir[Math.floor(Math.random()*fir.length)];
-    const opts=[...res,...com,...ind].filter(d=>d.x!==src.x||d.y!==src.y);
-    if (opts.length===0) return;
-    dst=opts[Math.floor(Math.random()*opts.length)];
-    clr='#dc143c';
-  } else {
+  // Emergency vehicles are now dispatched via dispatchEmergencyVehicle(), not spawned randomly
+  // So we only spawn normal civilian cars here
+  {
     src=res[Math.floor(Math.random()*res.length)];
     const dests=[...com,...ind].filter(d=>d.x!==src.x||d.y!==src.y);
     if (dests.length===0) return;
@@ -983,82 +1572,132 @@ function spawnCar() {
     });
 }
   
-  function updCars() {
-    st.cars=st.cars.filter(c => {
-      let remainingDist=getCarSpeedPerFrame();
-      if (remainingDist<=0) return true;
+function updCars() {
+  st.cars=st.cars.filter(c => {
+      const finalizeRemoval = () => {
+        if (c.mission && c.mission.returning) releaseStationSlot(c);
+        return false;
+      };
+      if (c.removeOnNextTick) return finalizeRemoval();
+    
+    if (c.mission && !c.mission.returning) {
+      const targetGridX = c.mission.targetX;
+      const targetGridY = c.mission.targetY;
+      let targetExists = false;
+      if (c.mission.type === 'fire') {
+        targetExists = st.fires.some(f => f.x === targetGridX && f.y === targetGridY);
+      } else if (c.mission.type === 'crime') {
+        targetExists = st.crimeEvents.some(evt => evt.x === targetGridX && evt.y === targetGridY);
+      }
       
-      while (remainingDist>0) {
-        let targetStage='path';
-        let tx,ty;
-        if (c.entering && c.entryTarget) {
-          targetStage='entry';
-          tx=c.entryTarget.x;
-          ty=c.entryTarget.y;
-        } else if (c.exiting && c.exitTarget) {
-          targetStage='exit';
-          tx=c.exitTarget.x;
-          ty=c.exitTarget.y;
-        } else {
-          if (c.pathIdx>=c.path.length-1) {
-            if (c.exitTarget) {
-              c.exiting=true;
-              continue;
-            }
-            return false;
-          }
-          const nextTarget=getCarSegmentTarget(c);
-          tx=nextTarget.tx;
-          ty=nextTarget.ty;
-        }
-        
-        const dx=tx-c.x, dy=ty-c.y;
-        const dist=Math.sqrt(dx*dx+dy*dy);
-        if (dist===0) {
-          if (targetStage==='entry') {
-            c.entering=false;
-            c.entryTarget=null;
-            continue;
-          }
-          if (targetStage==='exit') return false;
-          c.pathIdx++;
-          if (c.pathIdx>=c.path.length-1) {
-            if (c.exitTarget) {
-              c.exiting=true;
-              continue;
-            }
-            return false;
-          }
-          updateCarLaneOffset(c);
-          continue;
-        }
-        
-        const step=Math.min(dist,remainingDist);
-        c.x+=dx/dist*step;
-        c.y+=dy/dist*step;
-        remainingDist-=step;
-        if (step===dist) {
-          continue;
-        } else {
-          break;
-        }
+      if (!targetExists) {
+        prepareEmergencyVehicleReturn(c);
+        } else if (!c.mission.arrived) {
+          if (attemptMissionArrival(c)) return true;
+      } else {
+        return true;
+      }
+    }
+    
+    if (c.mission && c.mission.arrived && !c.mission.returning) {
+      if (c.holdPosition) {
+        c.x = c.holdPosition.x;
+        c.y = c.holdPosition.y;
+      } else if (c.sceneRoad) {
+        const center = getRoadCenterCoords(c.sceneRoad);
+        c.holdPosition = center;
+        c.x = center.x;
+        c.y = center.y;
+      } else {
+        c.holdPosition = { x: c.x, y: c.y };
       }
       return true;
-    });
-    
-    const maxCars=Math.min(60,Math.floor(st.population/18)+8);
-    const populationFactor=Math.min(1,st.population/4000);
-    const totalDemand=
-      Math.max(0,(st.rDemand||0))+
-      Math.max(0,(st.cDemand||0))+
-      Math.max(0,(st.iDemand||0));
-    const demandFactor=Math.min(1,totalDemand/400);
-    const spawnChance=Math.min(0.25,0.02+0.1*populationFactor+0.08*demandFactor);
-    if (st.speed>0 && st.population>10 && st.cars.length<maxCars && Math.random()<spawnChance) {
-      spawnCar();
-      if (st.cars.length<maxCars && Math.random()<0.15) spawnCar();
     }
+    
+    let remainingDist=getCarSpeedPerFrame(c);
+    if (remainingDist<=0) return true;
+    
+    while (remainingDist>0) {
+      let targetStage='path';
+      let tx,ty;
+      if (c.entering && c.entryTarget) {
+        targetStage='entry';
+        tx=c.entryTarget.x;
+        ty=c.entryTarget.y;
+      } else if (c.exiting && c.exitTarget) {
+        targetStage='exit';
+        tx=c.exitTarget.x;
+        ty=c.exitTarget.y;
+      } else {
+        if (c.pathIdx>=c.path.length-1) {
+            if (c.exitTarget) {
+              c.exiting=true;
+              continue;
+            }
+            if (c.mission && !c.mission.returning) {
+              if (attemptMissionArrival(c)) return true;
+              if (c.holdPosition) {
+                c.x = c.holdPosition.x;
+                c.y = c.holdPosition.y;
+              } else {
+                c.holdPosition = { x: c.x, y: c.y };
+              }
+              return true;
+            }
+            return finalizeRemoval();
+        }
+        const nextTarget=getCarSegmentTarget(c);
+        tx=nextTarget.tx;
+        ty=nextTarget.ty;
+      }
+      
+      const dx=tx-c.x, dy=ty-c.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if (dist===0) {
+        if (targetStage==='entry') {
+          c.entering=false;
+          c.entryTarget=null;
+          continue;
+        }
+        if (targetStage==='exit') return finalizeRemoval();
+        c.pathIdx++;
+        if (c.pathIdx>=c.path.length-1) {
+            if (c.exitTarget) {
+              c.exiting=true;
+              continue;
+            }
+            return finalizeRemoval();
+        }
+        updateCarLaneOffset(c);
+        continue;
+      }
+      
+      const step=Math.min(dist,remainingDist);
+      c.x+=dx/dist*step;
+      c.y+=dy/dist*step;
+      remainingDist-=step;
+      if (step===dist) {
+        continue;
+      } else {
+        break;
+      }
+    }
+    return true;
+  });
+  
+  const maxCars=Math.min(60,Math.floor(st.population/18)+8);
+  const populationFactor=Math.min(1,st.population/4000);
+  const totalDemand=
+    Math.max(0,(st.rDemand||0))+
+    Math.max(0,(st.cDemand||0))+
+    Math.max(0,(st.iDemand||0));
+  const demandFactor=Math.min(1,totalDemand/400);
+  const spawnChance=Math.min(0.25,0.02+0.1*populationFactor+0.08*demandFactor);
+  if (st.speed>0 && st.population>10 && st.cars.length<maxCars && Math.random()<spawnChance) {
+    spawnCar();
+    if (st.cars.length<maxCars && Math.random()<0.15) spawnCar();
   }
+}
 
 function updInpWd() {
   const inp=document.getElementById('cityName'), tmp=document.createElement('span');
@@ -1181,6 +1820,39 @@ function canPlLg(x,y,w,h,zt) {
 function getBuildingBoundsFromCell(x,y) {
   const c=st.grid[y][x];
   if (!c) return {startX:x,startY:y,w:1,h:1};
+  // If this cell has a buildingId, use it as the primary way to find bounds
+  if (c.buildingId != null && c.type!=='empty') {
+    const targetId = c.buildingId;
+    const visited = new Set();
+    const queue = [{x,y}];
+    let minX = x, maxX = x, minY = y, maxY = y;
+
+    while (queue.length>0) {
+      const cur = queue.shift();
+      const key = `${cur.x},${cur.y}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      if (cur.x<0 || cur.x>=GR_SZ || cur.y<0 || cur.y>=GR_SZ) continue;
+      const cell = st.grid[cur.y][cur.x];
+      if (!cell || cell.buildingId!==targetId) continue;
+
+      if (cur.x<minX) minX=cur.x;
+      if (cur.x>maxX) maxX=cur.x;
+      if (cur.y<minY) minY=cur.y;
+      if (cur.y>maxY) maxY=cur.y;
+
+      queue.push({x:cur.x-1,y:cur.y});
+      queue.push({x:cur.x+1,y:cur.y});
+      queue.push({x:cur.x,y:cur.y-1});
+      queue.push({x:cur.x,y:cur.y+1});
+    }
+
+    const w = maxX-minX+1;
+    const h = maxY-minY+1;
+    return {startX:minX,startY:minY,w,h};
+  }
+
+  // Fallback: legacy logic based on w/h only
   const baseW=c.w||1, baseH=c.h||1;
 
   // Single-tile structures (including empty zones) should never sweep across
@@ -1188,15 +1860,9 @@ function getBuildingBoundsFromCell(x,y) {
   // isolated cells so bulldozing/park placement only affects the clicked tile.
   if (baseW===1 && baseH===1) return {startX:x,startY:y,w:1,h:1};
 
-  // For multi-tile buildings (w>1 or h>1), all cells in the building have the same w,h values.
-  // We need to find the top-left corner of this building.
-  // The building occupies cells from (startX, startY) to (startX+w-1, startY+h-1).
-  // Strategy: search left and up from the clicked cell to find the top-left corner.
-  
   let startX = x;
   let startY = y;
-  
-  // Search left to find the leftmost cell of this building, but never sweep more than width-1 tiles
+
   let stepsLeft = 0;
   while (startX > 0 && stepsLeft < baseW-1) {
     const left = st.grid[y][startX-1];
@@ -1207,11 +1873,10 @@ function getBuildingBoundsFromCell(x,y) {
       break;
     }
   }
-  
-  // Search up to find the topmost cell of this building, but never sweep more than height-1 tiles
+
   let stepsUp = 0;
   while (startY > 0 && stepsUp < baseH-1) {
-    const above = st.grid[startY-1][x];
+    const above = st.grid[startY-1][startX];
     if (above && above.type === c.type && (above.w||1) === baseW && (above.h||1) === baseH) {
       startY--;
       stepsUp++;
@@ -1219,8 +1884,7 @@ function getBuildingBoundsFromCell(x,y) {
       break;
     }
   }
-  
-  // Verify the rectangle is consistent; otherwise fallback to single tile to avoid deleting neighbors
+
   let consistent = true;
   for (let dy=0; dy<baseH && consistent; dy++) {
     for (let dx=0; dx<baseW; dx++) {
@@ -1234,8 +1898,7 @@ function getBuildingBoundsFromCell(x,y) {
     }
   }
   if (!consistent) return {startX:x,startY:y,w:1,h:1};
-  
-  // The building's dimensions are stored in each cell's w and h
+
   return {startX:startX, startY:startY, w:baseW, h:baseH};
 }
 
@@ -1256,6 +1919,46 @@ function isTopLeftCell(x,y) {
   return true;
 }
 
+// Recompute buildingId metadata for all non-empty cells based on rectangular buildings
+function rebuildBuildingIdsFromGrid() {
+  nextBuildingId = 1;
+
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const cell = st.grid[y][x];
+      if (!cell) continue;
+      if (cell.type === 'empty') {
+        cell.buildingId = null;
+      } else {
+        cell.buildingId = undefined;
+      }
+    }
+  }
+
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const cell = st.grid[y][x];
+      if (!cell || cell.type === 'empty') continue;
+      if (!isTopLeftCell(x,y)) continue;
+
+      const w = cell.w || 1;
+      const h = cell.h || 1;
+      const buildingId = nextBuildingId++;
+
+      for (let dy=0; dy<h; dy++) {
+        for (let dx=0; dx<w; dx++) {
+          const nx = x+dx;
+          const ny = y+dy;
+          if (nx<0 || nx>=GR_SZ || ny<0 || ny>=GR_SZ) continue;
+          const target = st.grid[ny][nx];
+          if (!target || target.type==='empty') continue;
+          target.buildingId = buildingId;
+        }
+      }
+    }
+  }
+}
+
 function plcTl(x,y) {
   if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return; if (!st.selectedTool) return;
   const c=st.grid[y][x], tr=st.terrain[y][x];
@@ -1266,7 +1969,7 @@ function plcTl(x,y) {
 
       // Roads: always bulldoze a single tile only
       if (c.type==='road') {
-        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1};
+        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
         normalizeEmptyCell(x,y);
         drGr(); sv();
         return;
@@ -1281,19 +1984,19 @@ function plcTl(x,y) {
       // For small multi-tile buildings (not empty zones): bulldoze the entire building
       if (isEmptyZone) {
         // Empty zones: bulldoze only the clicked cell
-        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1};
+        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
         normalizeEmptyCell(x,y);
       } else if (isSmallMulti) {
         // Small multi-tile buildings: bulldoze the entire building
         for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
           const nx=startX+dx, ny=startY+dy; if (nx<GR_SZ && ny<GR_SZ) {
-            st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1};
+            st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
             normalizeEmptyCell(nx,ny);
           }
         }
       } else {
         // All other buildings: only bulldoze the clicked cell
-        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1};
+        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
         normalizeEmptyCell(x,y);
       }
 
@@ -1319,11 +2022,12 @@ function plcTl(x,y) {
     if (isEmptyZone) {
       const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
       // Replace all cells of the zone building with park
+      const parkBuildingId = nextBuildingId++;
       for (let dy=0; dy<h; dy++) {
         for (let dx=0; dx<w; dx++) {
           const nx=startX+dx, ny=startY+dy;
           if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-            st.grid[ny][nx]={type:st.selectedTool,age:0,level:1,w:1,h:1};
+            st.grid[ny][nx]={type:st.selectedTool,age:0,level:1,w:1,h:1,buildingId:parkBuildingId};
           }
         }
       }
@@ -1331,7 +2035,8 @@ function plcTl(x,y) {
       tryMrgPark(startX,startY);
     } else {
       // Normal placement on empty terrain
-      st.grid[y][x]={type:st.selectedTool,age:0,level:1,w:1,h:1};
+      const parkBuildingId = nextBuildingId++;
+      st.grid[y][x]={type:st.selectedTool,age:0,level:1,w:1,h:1,buildingId:parkBuildingId};
       // Try to merge with adjacent parks of the same type
       tryMrgPark(x,y);
     }
@@ -1342,7 +2047,8 @@ function plcTl(x,y) {
     if (st.money<cs) { plySnd('error'); return; }
     plySnd('place'); 
     st.money-=cs;
-    st.grid[y][x]={type:st.selectedTool,age:0,level:0,w:1,h:1};
+    const buildingId = nextBuildingId++;
+    st.grid[y][x]={type:st.selectedTool,age:0,level:0,w:1,h:1,buildingId:buildingId};
   }
   drGr(); updUI(); sv();
 }
@@ -1359,8 +2065,13 @@ function getCarSpeedMultiplier() {
 const CAR_BASE_SPEED = 1.0;
 const CAR_EDGE_OFFSET = CL_SZ/2 - 1;
 
-function getCarSpeedPerFrame() {
-  return CAR_BASE_SPEED * getCarSpeedMultiplier();
+function getCarSpeedPerFrame(car) {
+  const baseSpeed = CAR_BASE_SPEED * getCarSpeedMultiplier();
+  // Emergency vehicles move 3x faster to respond quickly
+  if (car && car.mission && !car.mission.arrived) {
+    return baseSpeed * 3;
+  }
+  return baseSpeed;
 }
 
 function updateCarLaneOffset(car) {
@@ -1479,7 +2190,8 @@ function handleDragStart(e) {
   }
   
   // Desktop mouse behavior
-  if (!st.selectedTool) return;
+  // Don't start drag if stats view is active
+  if (!st.selectedTool || showLandValueOverlay || showCrimeOverlay) return;
   
   const pos = getCanvasPos(e);
   dragStart = pos;
@@ -1505,7 +2217,8 @@ function handleDragMove(e) {
   }
   
   // Desktop mouse behavior
-  if (!st.selectedTool || !isDragging || !dragStart) return;
+  // Don't drag if stats view is active
+  if (!st.selectedTool || !isDragging || !dragStart || showLandValueOverlay || showCrimeOverlay) return;
   
   const pos = getCanvasPos(e);
   
@@ -1531,18 +2244,29 @@ function handleDragMove(e) {
 
 function handleDragEnd(e) {
   // Handle mobile tap (touch without scrolling)
-  if (e.changedTouches && touchStartPos && !isScrolling && st.selectedTool) {
-    // This was a tap, not a scroll - place a tile
+  if (e.changedTouches && touchStartPos && !isScrolling) {
     const pos = getCanvasPos(e);
-    plcTl(pos.x, pos.y);
+    
+    // If stat view is active, show building info instead of placing tool
+    if (showLandValueOverlay || showCrimeOverlay) {
+      showBuildingInfo(pos.x, pos.y);
+    } else if (st.selectedTool) {
+      // This was a tap, not a scroll - place a tile
+      plcTl(pos.x, pos.y);
+    }
   }
   // Handle desktop mouse drag end
-  else if (isDragging && !isScrolling && dragStart && st.selectedTool && !e.touches) {
+  else if (isDragging && !isScrolling && dragStart && !e.touches) {
     const pos = getCanvasPos(e);
     // If we didn't move much (or at all), treat as click
     const moved = Math.abs(pos.x - dragStart.x) > 0 || Math.abs(pos.y - dragStart.y) > 0;
     if (!moved) {
-      plcTl(pos.x, pos.y);
+      // If stat view is active, show building info instead of placing tool
+      if (showLandValueOverlay || showCrimeOverlay) {
+        showBuildingInfo(pos.x, pos.y);
+      } else if (st.selectedTool) {
+        plcTl(pos.x, pos.y);
+      }
     }
   }
   
@@ -1571,10 +2295,16 @@ cvs.addEventListener('touchcancel', handleDragEnd, { passive: true });
 cvs.addEventListener('click', e => {
   // Only handle mouse clicks, not touch-generated clicks
   if (e.detail === 0) return; // Touch events have detail = 0
-  if (!isDragging && !isScrolling && st.selectedTool) {
+  if (!isDragging && !isScrolling) {
     const r = cvs.getBoundingClientRect(), sx = cvs.width / r.width, sy = cvs.height / r.height;
     const x = Math.floor((e.clientX - r.left) * sx / CL_SZ), y = Math.floor((e.clientY - r.top) * sy / CL_SZ);
-    plcTl(x, y);
+    
+    // If stat view is active, show building info instead of placing tool
+    if (showLandValueOverlay || showCrimeOverlay) {
+      showBuildingInfo(x, y);
+    } else if (st.selectedTool) {
+      plcTl(x, y);
+    }
   }
 });
 
@@ -1855,7 +2585,17 @@ document.getElementById('rciBtn').addEventListener('click', () => {
 
 document.getElementById('popBtn').addEventListener('click', () => {
   const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
-  shwInfo('Population Stats', `<div>Total: ${st.population.toLocaleString()}</div><div>Residential zones: ${cnts.residential||0}</div><div>Employment: ${st.employment}%</div><div class="mt-2 text-xs text-neutral-400">Build more residential zones to grow</div>`, 'pop');
+  const bPR=10; let popL1=0, popL2=0, popL3=0;
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type==='residential' && hasRdAcc(x,y) && !c.abandoned) {
+      const sM=(c.w||1)*(c.h||1);
+      if (c.level===3) popL3+=Math.floor(bPR*sM*1.5);
+      else if (c.level===2) popL2+=Math.floor(bPR*sM*1.2);
+      else if (c.level>=1) popL1+=Math.floor(bPR*sM*1);
+    }
+  }
+  shwInfo('Population Stats', `<div>Total: ${st.population.toLocaleString()}</div><div>Residential zones: ${cnts.residential||0}</div><div>Employment: ${st.employment}%</div><div class="mt-2">Level: L1: ${popL1.toLocaleString()}, L2: ${popL2.toLocaleString()}, L3: ${popL3.toLocaleString()}</div><div class="mt-2 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`, 'pop');
 });
 
 document.getElementById('moneyBtn').addEventListener('click', () => {
@@ -1873,6 +2613,56 @@ document.getElementById('happyBtn').addEventListener('click', () => {
   avgCrime=Math.floor(avgCrime/(GR_SZ*GR_SZ));
   shwInfo('Happiness', `<div>Level: ${st.happiness}/100</div><div class="mt-1">Parks: ${cnts.park||0}</div><div>Services: ${(cnts.police||0)+(cnts.fire||0)+(cnts.school||0)+(cnts.hospital||0)}</div><div class="mt-1">Avg Crime: ${avgCrime}%</div><div>Active Crimes: ${st.crimeEvents.length}</div><div class="mt-2 text-xs text-neutral-400">Build parks, services, and police to increase</div>`, 'happy');
 });
+
+function updateStatsPanel() {
+  if (!currentInfoType) return;
+  const pnl = document.getElementById('infoPanel');
+  if (!pnl || pnl.classList.contains('hidden')) return;
+  
+  const cnts = {}; 
+  st.grid.flat().forEach(c => cnts[c.type] = (cnts[c.type] || 0) + 1);
+  
+  let content = '';
+  let title = '';
+  
+  if (currentInfoType === 'rci') {
+    title = 'RCI Demand';
+    content = `<div><span class="text-green-500">Residential:</span> ${st.rDemand}%</div><div><span class="text-blue-500">Commercial:</span> ${st.cDemand}%</div><div><span class="text-yellow-500">Industrial:</span> ${st.iDemand}%</div><div class="mt-2 text-xs text-neutral-400">Higher demand means more zones needed</div>`;
+  } else if (currentInfoType === 'pop') {
+    title = 'Population Stats';
+    const bPR=10; let popL1=0, popL2=0, popL3=0;
+    for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+      const c=st.grid[y][x];
+      if (c.type==='residential' && hasRdAcc(x,y) && !c.abandoned) {
+        const sM=(c.w||1)*(c.h||1);
+        if (c.level===3) popL3+=Math.floor(bPR*sM*1.5);
+        else if (c.level===2) popL2+=Math.floor(bPR*sM*1.2);
+        else if (c.level>=1) popL1+=Math.floor(bPR*sM*1);
+      }
+    }
+    content = `<div>Total: ${st.population.toLocaleString()}</div><div>Residential zones: ${cnts.residential||0}</div><div>Employment: ${st.employment}%</div><div class="mt-2">Level: L1: ${popL1.toLocaleString()}, L2: ${popL2.toLocaleString()}, L3: ${popL3.toLocaleString()}</div><div class="mt-2 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`;
+  } else if (currentInfoType === 'money') {
+    title = 'Budget';
+    const inc = Math.floor(st.population * 2);
+    const mnt = Math.floor(cnts.road * 1 + (cnts.residential || 0) * 2 + (cnts.commercial || 0) * 3 + (cnts.industrial || 0) * 5 + (cnts.park || 0) * 2 + (cnts.police || 0) * 10 + (cnts.fire || 0) * 10 + (cnts.school || 0) * 15 + (cnts.hospital || 0) * 20);
+    content = `<div>Balance: $${st.money.toLocaleString()}</div><div class="text-green-500">Income: +$${inc}</div><div class="text-red-400">Expenses: -$${mnt}</div><div class="mt-2 text-xs text-neutral-400">Income from population taxes</div>`;
+  } else if (currentInfoType === 'happy') {
+    title = 'Happiness';
+    let avgCrime = 0;
+    for (let y = 0; y < GR_SZ; y++) {
+      for (let x = 0; x < GR_SZ; x++) {
+        avgCrime += st.crime[y][x] || 30;
+      }
+    }
+    avgCrime = Math.floor(avgCrime / (GR_SZ * GR_SZ));
+    content = `<div>Level: ${st.happiness}/100</div><div class="mt-1">Parks: ${cnts.park||0}</div><div>Services: ${(cnts.police||0)+(cnts.fire||0)+(cnts.school||0)+(cnts.hospital||0)}</div><div class="mt-1">Avg Crime: ${avgCrime}%</div><div>Active Crimes: ${st.crimeEvents.length}</div><div class="mt-2 text-xs text-neutral-400">Build parks, services, and police to increase</div>`;
+  }
+  
+  if (title && content) {
+    document.getElementById('infoTitle').textContent = title;
+    document.getElementById('infoContent').innerHTML = content;
+  }
+}
 
 function hasRdAcc(x,y) {
   const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
@@ -2017,11 +2807,12 @@ function tryMrgPark(x,y) {
       if (above.type===c.type&&above.w===2&&above.h===1 && y-1>=0 && x+1<GR_SZ && st.grid[y-1][x+1].type===c.type) {
         // Merge into 2x2 - ensure all cells are within bounds
         if (y-1>=0 && y<GR_SZ && x>=0 && x+1<GR_SZ) {
+          const buildingId = nextBuildingId++;
           for (let dy=0; dy<2; dy++) {
             for (let dx=0; dx<2; dx++) {
               const nx=x+dx, ny=y-1+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-                st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2};
+                st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2,buildingId:buildingId};
               }
             }
           }
@@ -2035,11 +2826,12 @@ function tryMrgPark(x,y) {
       if (below.type===c.type&&below.w===2&&below.h===1 && y+1<GR_SZ && x+1<GR_SZ && st.grid[y+1][x+1].type===c.type) {
         // Merge into 2x2 - ensure all cells are within bounds
         if (y>=0 && y+1<GR_SZ && x>=0 && x+1<GR_SZ) {
+          const buildingId = nextBuildingId++;
           for (let dy=0; dy<2; dy++) {
             for (let dx=0; dx<2; dx++) {
               const nx=x+dx, ny=y+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-                st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2};
+                st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2,buildingId:buildingId};
               }
             }
           }
@@ -2060,11 +2852,12 @@ function tryMrgPark(x,y) {
       if (left.type===c.type&&left.w===1&&left.h===2 && x-1>=0 && y+1<GR_SZ && st.grid[y+1][x-1].type===c.type) {
         // Merge into 2x2 - ensure all cells are within bounds
         if (y>=0 && y+1<GR_SZ && x-1>=0 && x<GR_SZ) {
+          const buildingId = nextBuildingId++;
           for (let dy=0; dy<2; dy++) {
             for (let dx=0; dx<2; dx++) {
               const nx=x-1+dx, ny=y+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-                st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2};
+                st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2,buildingId:buildingId};
               }
             }
           }
@@ -2078,11 +2871,12 @@ function tryMrgPark(x,y) {
       if (right.type===c.type&&right.w===1&&right.h===2 && x+1<GR_SZ && y+1<GR_SZ && st.grid[y+1][x+1].type===c.type) {
         // Merge into 2x2 - ensure all cells are within bounds
         if (y>=0 && y+1<GR_SZ && x>=0 && x+1<GR_SZ) {
+          const buildingId = nextBuildingId++;
           for (let dy=0; dy<2; dy++) {
             for (let dx=0; dx<2; dx++) {
               const nx=x+dx, ny=y+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-                st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2};
+                st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2,buildingId:buildingId};
               }
             }
           }
@@ -2110,11 +2904,12 @@ function tryMrgPark(x,y) {
     
     if (canMerge) {
       // Merge the parks - ensure all cells are within bounds
+      const buildingId = nextBuildingId++;
       for (let dy=0; dy<d.h; dy++) {
         for (let dx=0; dx<d.w; dx++) {
           const nx=sx+dx, ny=sy+dy;
           if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-            st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:d.w,h:d.h};
+            st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:d.w,h:d.h,buildingId:buildingId};
           }
         }
       }
@@ -2156,11 +2951,12 @@ function tryMrgTo2x1(x,y) {
     const bestLevel=Math.max(1,Math.min(c.level||1,adj.level||c.level||1));
     const isAbandoned=c.abandoned && adj.abandoned;
     
+    const buildingId = nextBuildingId++;
     for (let dy=0; dy<target.h; dy++) {
       for (let dx=0; dx<target.w; dx++) {
         const nx=topLeftX+dx, ny=topLeftY+dy;
         if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-          st.grid[ny][nx]={type:c.type,age:bestAge,level:bestLevel,w:target.w,h:target.h,abandoned:isAbandoned};
+          st.grid[ny][nx]={type:c.type,age:bestAge,level:bestLevel,w:target.w,h:target.h,abandoned:isAbandoned,buildingId:buildingId};
         }
       }
     }
@@ -2211,10 +3007,11 @@ function tryMrg(x,y) {
     
     if (!canExpand) continue;
     
+    const buildingId = nextBuildingId++;
     for (let dy=0; dy<2; dy++) {
       for (let dx=0; dx<2; dx++) {
         const nx=topLeftX+dx, ny=topLeftY+dy;
-        st.grid[ny][nx]={type:c.type,age:mergedAge,level:baseLevel,w:2,h:2,abandoned:false};
+        st.grid[ny][nx]={type:c.type,age:mergedAge,level:baseLevel,w:2,h:2,abandoned:false,buildingId:buildingId};
       }
     }
     return true;
@@ -2225,16 +3022,75 @@ function tryMrg(x,y) {
 
 function updFires() {
   st.fires=st.fires.filter(f => {
-    f.age++; if (f.age>30) { 
-      st.grid[f.y][f.x]={type:'empty',age:0,level:0,w:1,h:1}; 
-      normalizeEmptyCell(f.x,f.y); // Ensure it's 1x1
+    f.age++;
+    
+    // Count fire trucks at scene (from vehicles that have arrived)
+    const trucksAtScene = st.cars.filter(c => 
+      c.mission && 
+      c.mission.type === 'fire' && 
+      c.mission.arrived && 
+      c.mission.targetX === f.x && 
+      c.mission.targetY === f.y
+    ).length;
+    
+    // Fires REQUIRE fire trucks to be extinguished - they won't go out on their own
+    // With trucks: extinguish faster (10 ticks per truck, min 5 ticks)
+    // Without trucks: fire continues indefinitely (but building will eventually be destroyed)
+    if (trucksAtScene === 0) {
+      // No fire trucks - fire continues burning
+      // After 60 ticks without trucks, building is destroyed anyway
+      if (f.age > 60) {
+        sendEmergencyVehiclesHome('fire', f.x, f.y);
+        
+        const cell=st.grid[f.y][f.x];
+        if (cell && cell.type!=='empty') {
+          const bounds=getBuildingBoundsFromCell(f.x,f.y);
+          const w=bounds.w||1, h=bounds.h||1;
+          for (let dy=0; dy<h; dy++) {
+            for (let dx=0; dx<w; dx++) {
+              const nx=bounds.startX+dx, ny=bounds.startY+dy;
+              if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                normalizeEmptyCell(nx,ny);
+              }
+            }
+          }
+        }
+        return false; // Remove fire after building destroyed
+      }
+      return true; // Keep fire burning
+    }
+    
+    // Fire trucks are at scene - extinguish fire
+    // Extinguish faster with more trucks: 10 ticks per truck (min 5 ticks)
+    const maxAge = Math.max(5, 30 - trucksAtScene * 10);
+    
+    if (f.age>maxAge) { 
+      sendEmergencyVehiclesHome('fire', f.x, f.y);
+      
+      const cell=st.grid[f.y][f.x];
+      if (cell && cell.type!=='empty') {
+        const bounds=getBuildingBoundsFromCell(f.x,f.y);
+        const w=bounds.w||1, h=bounds.h||1;
+        for (let dy=0; dy<h; dy++) {
+          for (let dx=0; dx<w; dx++) {
+            const nx=bounds.startX+dx, ny=bounds.startY+dy;
+            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+              st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+              normalizeEmptyCell(nx,ny); // Ensure it's 1x1
+            }
+          }
+        }
+      }
       return false; 
     }
     const c=st.grid[f.y][f.x]; if (c.type==='empty') return false;
     let hasFr=false; for (let dy=-3; dy<=3; dy++) for (let dx=-3; dx<=3; dx++) {
       const nx=f.x+dx, ny=f.y+dy; if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) if (st.grid[ny][nx].type==='fire') hasFr=true;
     }
-    if (hasFr && f.age>10) return false; return true;
+    // With fire trucks, fires can be extinguished earlier
+    const minAgeForSpread = trucksAtScene > 0 ? 5 : 10;
+    if (hasFr && f.age>minAgeForSpread) return false; return true;
   });
 }
 
@@ -2243,8 +3099,17 @@ function startFire() {
     const c=st.grid[y][x]; if ((c.type==='residential'||c.type==='commercial'||c.type==='industrial') && !c.abandoned) blds.push({x,y});
   }
   if (blds.length>0) {
-    const b=blds[Math.floor(Math.random()*blds.length)]; st.fires.push({x:b.x,y:b.y,age:0});
-    st.newsEvents.push(`🔥 Fire breaks out in ${st.cityName}! (-$5k)`); st.money-=5000;
+    const b=blds[Math.floor(Math.random()*blds.length)]; 
+    st.fires.push({x:b.x,y:b.y,age:0,fireTrucksAtScene:0});
+    
+    // Dispatch fire truck from nearest fire station
+    const dispatched = dispatchEmergencyVehicle('fire', b.x, b.y, 'fire');
+    if (dispatched) {
+      st.newsEvents.push(`🔥 Fire breaks out in ${st.cityName}! Fire truck dispatched. (-$5k)`);
+    } else {
+      st.newsEvents.push(`🔥 Fire breaks out in ${st.cityName}! No fire station nearby! (-$5k)`);
+    }
+    st.money-=5000;
     nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
   }
 }
@@ -2315,15 +3180,16 @@ function startQuake() {
   for (let i=0; i<dmg; i++) {
     if (blds.length>0) {
       const b=blds.splice(Math.floor(Math.random()*blds.length),1)[0];
-      // Destroy all cells that are part of this building
-      const w=b.w||1, h=b.h||1;
+      // Destroy all cells that are part of this building using robust bounds
+      const bounds=getBuildingBoundsFromCell(b.x,b.y);
+      const w=bounds.w||1, h=bounds.h||1;
       for (let dy=0; dy<h; dy++) {
         for (let dx=0; dx<w; dx++) {
-          const nx=b.x+dx, ny=b.y+dy;
+          const nx=bounds.startX+dx, ny=bounds.startY+dy;
           if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
             // Only destroy if it's not a road
             if (st.grid[ny][nx].type!=='road') {
-              st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1};
+              st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
               normalizeEmptyCell(nx,ny); // Ensure it's 1x1
             }
           }
@@ -2338,20 +3204,40 @@ function startQuake() {
 function updCrimeEvents() {
   st.crimeEvents=st.crimeEvents.filter(evt => {
     evt.age++;
-    // Check if police station is nearby (within 8 tiles) - resolves faster
-    let hasPolice=false;
-    for (let dy=-8; dy<=8; dy++) for (let dx=-8; dx<=8; dx++) {
-      const nx=evt.x+dx, ny=evt.y+dy;
-      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-        if (st.grid[ny][nx].type==='police') {
-          const d=Math.abs(dx)+Math.abs(dy);
-          if (d<=8) { hasPolice=true; break; }
-        }
+    
+    // Count police cars at scene (from vehicles that have arrived)
+    const policeAtScene = st.cars.filter(c => 
+      c.mission && 
+      c.mission.type === 'crime' && 
+      c.mission.arrived && 
+      c.mission.targetX === evt.x && 
+      c.mission.targetY === evt.y
+    ).length;
+    
+    // Crimes REQUIRE police cars to resolve - they won't resolve on their own
+    // Without police cars: crime continues indefinitely (causing ongoing costs)
+    if (policeAtScene === 0) {
+      // No police cars - crime continues
+      // After 100 ticks without police, crime eventually stops (but damage is done)
+      if (evt.age > 100) {
+        // Crime resolved after long time without police (but should have been handled)
+        return false;
       }
+      // Continue costing money while crime is active
+      if (evt.age % 10 === 0) {
+        st.money -= 500; // Ongoing cost every 10 ticks
+      }
+      return true; // Keep crime active
     }
-    // Crime events last 20 ticks normally, but only 10 ticks if police nearby
-    const maxAge=hasPolice?10:20;
-    if (evt.age>maxAge) return false;
+    
+    // Police cars are at scene - resolve crime quickly
+    // Resolve faster with more cars: 5 ticks per car (min 2 ticks)
+    const maxAge = Math.max(2, 20 - policeAtScene * 5);
+    
+    if (evt.age>maxAge) {
+      sendEmergencyVehiclesHome('crime', evt.x, evt.y);
+      return false;
+    }
     return true;
   });
 }
@@ -2371,12 +3257,16 @@ function startCrimeEvent() {
     const b=blds[Math.floor(Math.random()*blds.length)];
     const crimeTypes=['robbery','break-in','vandalism'];
     const crimeType=crimeTypes[Math.floor(Math.random()*crimeTypes.length)];
-    st.crimeEvents.push({x:b.x,y:b.y,type:crimeType,age:0});
+    st.crimeEvents.push({x:b.x,y:b.y,type:crimeType,age:0,policeCarsAtScene:0});
+    
+    // Dispatch police car from nearest police station
+    const dispatched = dispatchEmergencyVehicle('police', b.x, b.y, 'crime');
     const cost=Math.floor(Math.random()*3000)+2000;
     st.money-=cost;
-    const msg=crimeType==='robbery'?`🚨 Robbery reported in ${st.cityName}! (-$${(cost/1000).toFixed(0)}k)`:
-           crimeType==='break-in'?`🚨 Break-in reported in ${st.cityName}! (-$${(cost/1000).toFixed(0)}k)`:
-           `🚨 Vandalism reported in ${st.cityName}! (-$${(cost/1000).toFixed(0)}k)`;
+    const dispatchedMsg = dispatched ? ' Police car dispatched.' : ' No police station nearby!';
+    const msg=crimeType==='robbery'?`🚨 Robbery reported in ${st.cityName}!${dispatchedMsg} (-$${(cost/1000).toFixed(0)}k)`:
+           crimeType==='break-in'?`🚨 Break-in reported in ${st.cityName}!${dispatchedMsg} (-$${(cost/1000).toFixed(0)}k)`:
+           `🚨 Vandalism reported in ${st.cityName}!${dispatchedMsg} (-$${(cost/1000).toFixed(0)}k)`;
     st.newsEvents.push(msg);
     nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
   }
@@ -2392,8 +3282,19 @@ function simTk() {
     // Normalize empty cells to ensure they're always 1x1
     if (c.type==='empty') normalizeEmptyCell(x,y);
     if (c.type!=='empty') {
-      c.age++; const w=c.w||1, h=c.h||1;
-      for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) cntd[`${x+dx},${y+dy}`]=true;
+      const w=c.w||1, h=c.h||1;
+      // Only increment age once per building (only for the top-left cell being processed)
+      c.age++;
+      // For multi-tile buildings, sync age to all cells
+      for (let dy=0; dy<h; dy++) {
+        for (let dx=0; dx<w; dx++) {
+          const nx=x+dx, ny=y+dy;
+          if (nx<GR_SZ && ny<GR_SZ) {
+            st.grid[ny][nx].age = c.age; // Sync age across all cells
+          }
+          cntd[`${nx},${ny}`]=true;
+        }
+      }
     }
     if (c.type==='residential') rC++; else if (c.type==='commercial') cC++; else if (c.type==='industrial') iC++;
     else if (c.type.startsWith('park')) pC++; else if (c.type==='police') poC++; else if (c.type==='fire') fC++;
@@ -2649,11 +3550,12 @@ function simTk() {
   st.happiness=Math.max(0,Math.min(100,Math.floor(hp)));
   const dmd=calcDmd(rC,cC,iC,st.population); st.rDemand=Math.floor(dmd.rDemand); st.cDemand=Math.floor(dmd.cDemand); st.iDemand=Math.floor(dmd.iDemand);
   const tB=rC+cC+iC+pC+poC+fC+sC+hC;
-  if (st.ticksSinceNews>=8 && tB>5 && !aiReq) { st.ticksSinceNews=0; genNws(); }
-  if (Math.random()<0.02 && tB>10) startFire();
-  if (Math.random()<0.01 && tB>20) startQuake();
-  if (Math.random()<0.02 && st.population>50) startCrimeEvent();
-  updFires(); updCrimeEvents(); drGr(); updUI(); sv();
+  if (st.ticksSinceNews>=20 && tB>5 && !aiReq) { st.ticksSinceNews=0; genNws(); }
+    if (Math.random()<0.02 && tB>10) startFire();
+    if (Math.random()<0.01 && tB>20) startQuake();
+    if (Math.random()<0.02 && st.population>50) startCrimeEvent();
+    ensureEmergencyCoverage();
+    updFires(); updCrimeEvents(); drGr(); updUI(); updateStatsPanel(); sv();
 }
 
 const aC=new (window.AudioContext||window.webkitAudioContext)();
@@ -2687,6 +3589,94 @@ window.addEventListener('resize', () => {
 });
 
 setInterval(() => { if (st.speed>0) { updCars(); drGr(); } },50);
+
+// Building info panel for stat view
+function showBuildingInfo(x, y) {
+  const c = st.grid[y][x];
+  if (!c || c.type === 'empty') return;
+  
+  const panel = document.getElementById('buildingInfoPanel');
+  const title = document.getElementById('buildingInfoTitle');
+  const content = document.getElementById('buildingInfoContent');
+  
+  // Get building icon
+  const icon = {
+    'residential': '🏠',
+    'commercial': '🏢',
+    'industrial': '🏭',
+    'road': '🛣️',
+    'park': '🌳',
+    'park2': '🌸',
+    'park3': '🌲',
+    'park4': '🌻',
+    'police': '👮',
+    'fire': '🚒',
+    'school': '🏫',
+    'hospital': '🏥'
+  }[c.type] || '🏗️';
+  
+  // Format building name
+  const name = c.type.charAt(0).toUpperCase() + c.type.slice(1).replace(/\d+$/, '');
+  title.textContent = `${icon} ${name}`;
+  
+  // Build content
+  let contentParts = [];
+  
+  // Size info for multi-tile buildings
+  if (c.w > 1 || c.h > 1) {
+    contentParts.push(`<div>Size: ${c.w}×${c.h}</div>`);
+  }
+  
+  // Level info for zones
+  if (c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') {
+    if (c.abandoned) {
+      contentParts.push(`<div class="text-red-400">Status: Abandoned</div>`);
+    } else {
+      contentParts.push(`<div>Level: ${c.level}</div>`);
+    }
+  }
+  
+  // Age info
+  if (c.age !== undefined) {
+    const years = Math.floor(c.age / 12);
+    contentParts.push(`<div>Age: ${years} year${years !== 1 ? 's' : ''}</div>`);
+  }
+  
+  // Land value and crime for this tile
+  const landValue = st.landValue[y] && st.landValue[y][x] !== undefined ? st.landValue[y][x] : 50;
+  const crime = st.crime[y] && st.crime[y][x] !== undefined ? st.crime[y][x] : 30;
+  
+  if (showLandValueOverlay) {
+    const lvColor = landValue >= 80 ? 'text-green-400' : landValue >= 50 ? 'text-yellow-400' : 'text-orange-400';
+    contentParts.push(`<div class="${lvColor}">Land Value: ${landValue.toFixed(0)}</div>`);
+  }
+  
+  if (showCrimeOverlay) {
+    const crimeColor = crime >= 70 ? 'text-red-400' : crime >= 30 ? 'text-yellow-400' : 'text-green-400';
+    const crimeLevel = crime >= 70 ? 'High' : crime >= 30 ? 'Medium' : 'Low';
+    contentParts.push(`<div class="${crimeColor}">Crime: ${crimeLevel} (${crime.toFixed(0)})</div>`);
+  }
+  
+  content.innerHTML = contentParts.join('');
+  panel.classList.remove('hidden');
+  
+  // Set highlighted building (get full building bounds from top-left corner)
+  const bounds = getBuildingBoundsFromCell(x, y);
+  highlightedBuilding = {
+    x: bounds.startX,
+    y: bounds.startY,
+    w: bounds.w,
+    h: bounds.h
+  };
+  drGr(); // Redraw to show highlight
+}
+
+function hideBuildingInfo() {
+  const panel = document.getElementById('buildingInfoPanel');
+  panel.classList.add('hidden');
+  highlightedBuilding = null;
+  drGr(); // Redraw to remove highlight
+}
 </script>
 </body>
 </html>
