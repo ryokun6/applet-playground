@@ -48,44 +48,21 @@
     }
   </style>
   
-  <!-- Move click interceptor script to head for earlier execution -->
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      document.addEventListener('click', function(event) {
-        var targetElement = event.target.closest('a');
-        // Only intercept if it's a valid link and NOT inside the draggable toolbar
-        if (targetElement && targetElement.href && !targetElement.closest('[data-drag-controls]')) {
-          event.preventDefault();
-          event.stopPropagation();
-          try {
-            // Resolve relative URLs against the document's base URI (if set) or window location
-            const absoluteUrl = new URL(targetElement.getAttribute('href'), document.baseURI || window.location.href).href;
-            // Use a specific message type for AI HTML navigation
-            window.parent.postMessage({ type: 'aiHtmlNavigation', url: absoluteUrl }, '*');
-            console.log('Intercepted link click:', absoluteUrl);
-          } catch (e) { console.error("Error resolving/posting URL:", e); }
-        }
-      }, true); // Use capture phase to intercept early
-    });
-    
-    // Also add immediate execution version for documents that load quickly
-    // This helps ensure we don't miss any clicks during initial page load
     (function() {
-      document.addEventListener('click', function(event) {
-        var targetElement = event.target.closest('a');
-        // Only intercept if it's a valid link and NOT inside the draggable toolbar
-        if (targetElement && targetElement.href && !targetElement.closest('[data-drag-controls]')) {
+      function handleLinkClick(event) {
+        const targetElement = event.target.closest('a');
+        if (targetElement && targetElement.href && !targetElement.closest('[data-drag-controls]') && !targetElement.hasAttribute('download')) {
           event.preventDefault();
           event.stopPropagation();
           try {
-            // Resolve relative URLs against the document's base URI (if set) or window location
             const absoluteUrl = new URL(targetElement.getAttribute('href'), document.baseURI || window.location.href).href;
-            // Use a specific message type for AI HTML navigation
             window.parent.postMessage({ type: 'aiHtmlNavigation', url: absoluteUrl }, '*');
-            console.log('Intercepted link click (immediate handler):', absoluteUrl);
           } catch (e) { console.error("Error resolving/posting URL:", e); }
         }
-      }, true); // Use capture phase to intercept early
+      }
+      document.addEventListener('click', handleLinkClick, true);
+      document.addEventListener('DOMContentLoaded', () => document.addEventListener('click', handleLinkClick, true));
     })();
   </script>
  
@@ -116,7 +93,7 @@
         </div>
       </div>
       
-      <div class="flex items-center gap-3 text-xs">
+      <div class="flex items-center gap-1.5 text-xs">
         <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="popBtn">
           <span class="text-neutral-500">☻</span>
           <span id="population" class="text-white tabular-nums">0</span>
@@ -145,7 +122,7 @@
   </div>
 
   <div id="menu" class="hidden border-b border-neutral-700 bg-neutral-800 p-3 flex-shrink-0">
-    <div class="space-y-3">
+    <div class="max-w-md mx-auto space-y-3">
       <div class="flex items-start gap-3">
         <div class="space-y-2 flex-1">
           <div class="text-xs text-neutral-500 tracking-wider px-1">zoom</div>
@@ -162,6 +139,15 @@
             <span>disasters</span>
           </label>
         </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="exportBtn" class="flex-1 text-center px-3 py-2 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors">
+          export
+        </button>
+        <button id="importBtn" class="flex-1 text-center px-3 py-2 border border-neutral-600 text-neutral-300 rounded text-sm hover:bg-neutral-700 transition-colors">
+          import
+        </button>
+        <input type="file" id="importFileInput" accept=".json" class="hidden">
       </div>
       <div class="flex items-center gap-2">
         <button id="aiSuggestBtn" class="flex-1 text-center px-3 py-2 border border-yellow-600 text-yellow-500 rounded text-sm hover:bg-yellow-900/20 transition-colors flex items-center justify-center gap-2">
@@ -235,31 +221,37 @@
   </div>
 
   <div id="aiPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 max-h-48 overflow-y-auto flex-shrink-0">
-    <div class="flex items-start gap-2 mb-2">
-      <div class="flex-1">
-        <div class="text-xs text-yellow-500 mb-1">AI Mayor</div>
-        <div id="aiMessage" class="text-sm text-neutral-300 leading-relaxed"></div>
+    <div class="max-w-md mx-auto">
+      <div class="flex items-start gap-2 mb-2">
+        <div class="flex-1">
+          <div class="text-xs text-yellow-500 mb-1">AI Mayor</div>
+          <div id="aiMessage" class="text-sm text-neutral-300 leading-relaxed"></div>
+        </div>
+        <button id="closeAiBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
       </div>
-      <button id="closeAiBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
     </div>
   </div>
   <!-- Building info panel for stat view -->
   <div id="buildingInfoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 flex-shrink-0">
-    <div class="flex items-start gap-2">
-      <div class="flex-1">
-        <div id="buildingInfoTitle" class="text-sm font-bold text-white mb-2"></div>
-        <div id="buildingInfoContent" class="text-xs text-neutral-300 space-y-1"></div>
+    <div class="max-w-md mx-auto">
+      <div class="flex items-start gap-2">
+        <div class="flex-1">
+          <div id="buildingInfoTitle" class="text-sm font-bold text-white mb-2"></div>
+          <div id="buildingInfoContent" class="text-xs text-neutral-300 space-y-1"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <div id="infoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 max-h-48 overflow-y-auto flex-shrink-0">
-    <div class="flex items-start gap-2 mb-2">
-      <div class="flex-1">
-        <div class="text-xs text-blue-400 mb-1" id="infoTitle">Info</div>
-        <div id="infoContent" class="text-sm text-neutral-300 leading-relaxed space-y-1"></div>
+    <div class="max-w-md mx-auto">
+      <div class="flex items-start gap-2 mb-2">
+        <div class="flex-1">
+          <div class="text-xs text-blue-400 mb-1" id="infoTitle">Info</div>
+          <div id="infoContent" class="text-sm text-neutral-300 leading-relaxed space-y-1"></div>
+        </div>
+        <button id="closeInfoBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
       </div>
-      <button id="closeInfoBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
     </div>
   </div>
 
@@ -278,11 +270,28 @@
 }
 @keyframes shake {
   0%, 100% { transform: translate(0, 0); }
-  10%, 30%, 50%, 70%, 90% { transform: translate(-2px, 1px); }
-  20%, 40%, 60%, 80% { transform: translate(2px, -1px); }
+  5% { transform: translate(-8px, 6px); }
+  10% { transform: translate(7px, -5px); }
+  15% { transform: translate(-9px, 4px); }
+  20% { transform: translate(8px, -7px); }
+  25% { transform: translate(-10px, 8px); }
+  30% { transform: translate(9px, -6px); }
+  35% { transform: translate(-7px, 5px); }
+  40% { transform: translate(8px, -8px); }
+  45% { transform: translate(-9px, 7px); }
+  50% { transform: translate(10px, -5px); }
+  55% { transform: translate(-8px, 6px); }
+  60% { transform: translate(7px, -7px); }
+  65% { transform: translate(-6px, 5px); }
+  70% { transform: translate(5px, -6px); }
+  75% { transform: translate(-4px, 4px); }
+  80% { transform: translate(4px, -4px); }
+  85% { transform: translate(-3px, 3px); }
+  90% { transform: translate(2px, -2px); }
+  95% { transform: translate(-1px, 1px); }
 }
 .ticker-roll { animation: tickerRollUp 0.5s ease-out forwards; }
-.earthquake { animation: shake 0.5s ease-in-out; }
+.earthquake { animation: shake 1.5s ease-in-out; }
 .tool-btn {
   transition: opacity 0.2s ease, background-color 0.2s ease;
   position: relative;
@@ -317,16 +326,34 @@
 </style>
 
 <script>
+// Constants
 const GR_SZ = 32, CL_SZ = 16;
-const TICKS_PER_MONTH = 4;
-const TICKS_PER_YEAR = TICKS_PER_MONTH * 12;
-let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
 const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000,coal:5000,nuclear:10000,wind:3000};
+const POWER_GENERATION = {coal:600,nuclear:1200,wind:240};
+const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
+const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
+const STATION_MAX_ACTIVE = 2;
+const STAT_INFO_TYPES = ['rci','pop','money','happy'];
+const CAR_BASE_SPEED = 1.0;
+const CAR_EDGE_OFFSET = CL_SZ/2 - 1;
+const CAR_SNAP_THRESHOLD = 0.5;
+const EMERGENCY_SPEED_MULTIPLIER = 1.2;
 
-// Power generation amounts per plant (further boosted output for each type)
-const POWER_GENERATION = {coal:160,nuclear:320,wind:80};
+// State variables
+let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{}};
+let nextBuildingId = 1;
+let showLandValueOverlay = false;
+let showCrimeOverlay = false;
+let highlightedBuilding = null;
+let currentInfoType = null;
+let activeSubmenu = null;
+let isDragging = false, dragStart = null, lastPlaced = null, isScrolling = false, touchStartPos = null, lastTouchPos = null;
+let hoverPos = null;
+let lastZoneBounds = null;
+let resizeTimeout;
 
-// Power consumption per building type and level
+// ===== Power System =====
 function getPowerConsumption(buildingType, level) {
   if (buildingType === 'residential') {
     if (level === 2) return 5;
@@ -345,61 +372,168 @@ function getPowerConsumption(buildingType, level) {
   }
   return 0;
 }
-function getPowerSummary() {
-  let totalPowerGeneration=0;
-  let totalPowerDemand=0;
-  let totalPowerAllocated=0;
-  const processedPlants=new Set();
-  const processedBuildings=new Set();
-  const assignments=st.buildingPowerAssignments||{};
 
-  for (let y=0; y<GR_SZ; y++) {
-    for (let x=0; x<GR_SZ; x++) {
-      const cell=st.grid[y][x];
+function getBuildingPowerKey(x, y) {
+  if (x<0 || x>=GR_SZ || y<0 || y>=GR_SZ) return null;
+  const cell = st.grid[y][x];
+  if (!cell || !cell.type || cell.type === 'empty') return null;
+  if (cell.buildingId != null) return `b:${cell.buildingId}`;
+  const bounds = getBuildingBoundsFromCell(x,y);
+  const w = bounds.w || 1;
+  const h = bounds.h || 1;
+  return `b:${cell.type}:${bounds.startX},${bounds.startY},${w}x${h}`;
+}
+
+function getPowerPlantKey(x, y) {
+  if (x<0 || x>=GR_SZ || y<0 || y>=GR_SZ) return null;
+  const cell = st.grid[y][x];
+  if (!cell || !cell.type) return null;
+  if (cell.buildingId != null) return `p:${cell.buildingId}`;
+  const bounds = getBuildingBoundsFromCell(x,y);
+  const w = bounds.w || 1;
+  const h = bounds.h || 1;
+  return `p:${cell.type}:${bounds.startX},${bounds.startY},${w}x${h}`;
+}
+
+function getPowerSystemSnapshot() {
+  const processedPowerPlants = new Set();
+  const processedBuildings = new Set();
+  const consumers = [];
+  let totalPowerGeneration = 0;
+  let totalPowerConsumption = 0;
+  let coalGen = 0, nuclearGen = 0, windGen = 0;
+  let coalCount = 0, nuclearCount = 0, windCount = 0;
+  let residentialConsumption = 0, commercialConsumption = 0, industrialConsumption = 0;
+  
+  for (let y = 0; y < GR_SZ; y++) {
+    for (let x = 0; x < GR_SZ; x++) {
+      const cell = st.grid[y][x];
       if (!cell) continue;
-
-      if (cell.type==='coal'||cell.type==='nuclear'||cell.type==='wind') {
-        const key=getBuildingPowerKey(x,y);
-        if (!key || processedPlants.has(key)) continue;
-        processedPlants.add(key);
-        totalPowerGeneration+=POWER_GENERATION[cell.type]||0;
-        continue;
+      
+      if (cell.type === 'coal' || cell.type === 'nuclear' || cell.type === 'wind') {
+        const plantKey = getPowerPlantKey(x,y);
+        if (plantKey && !processedPowerPlants.has(plantKey)) {
+          processedPowerPlants.add(plantKey);
+          const gen = POWER_GENERATION[cell.type] || 0;
+          totalPowerGeneration += gen;
+          if (cell.type === 'coal') { coalGen += gen; coalCount++; }
+          else if (cell.type === 'nuclear') { nuclearGen += gen; nuclearCount++; }
+          else if (cell.type === 'wind') { windGen += gen; windCount++; }
+        }
       }
-
-      if (!(cell.type==='residential'||cell.type==='commercial'||cell.type==='industrial')) continue;
-      const buildingKey=getBuildingPowerKey(x,y);
-      if (!buildingKey || processedBuildings.has(buildingKey)) continue;
-      processedBuildings.add(buildingKey);
-
-      const consumption=getPowerConsumption(cell.type,cell.level||0);
-      if (consumption<=0) continue;
-      totalPowerDemand+=consumption;
-      if (assignments[buildingKey]) {
-        totalPowerAllocated+=consumption;
+      
+      if (cell.type === 'residential' || cell.type === 'commercial' || cell.type === 'industrial') {
+        if (cell.abandoned) continue;
+        const buildingKey = getBuildingPowerKey(x,y);
+        if (!buildingKey || processedBuildings.has(buildingKey)) continue;
+        processedBuildings.add(buildingKey);
+        
+        const level = cell.level || 0;
+        const perTileConsumption = getPowerConsumption(cell.type, level);
+        if (perTileConsumption <= 0) continue;
+        const bounds = getBuildingBoundsFromCell(x,y);
+        const area = Math.max(1,(bounds.w||1)*(bounds.h||1));
+        const consumption = perTileConsumption * area;
+        totalPowerConsumption += consumption;
+        if (cell.type === 'residential') residentialConsumption += consumption;
+        else if (cell.type === 'commercial') commercialConsumption += consumption;
+        else industrialConsumption += consumption;
+        
+        const hasConnection = hasPowerAccess(x,y);
+        consumers.push({
+          key: buildingKey,
+          type: cell.type,
+          level,
+          consumption,
+          hasConnection,
+          x: bounds.startX,
+          y: bounds.startY
+        });
       }
     }
   }
-
+  
   return {
-    generation: totalPowerGeneration,
-    demand: totalPowerDemand,
-    allocated: totalPowerAllocated,
-    surplus: totalPowerGeneration - totalPowerDemand
+    totalPowerGeneration,
+    totalPowerConsumption,
+    coalGen,
+    nuclearGen,
+    windGen,
+    coalCount,
+    nuclearCount,
+    windCount,
+    residentialConsumption,
+    commercialConsumption,
+    industrialConsumption,
+    consumers
   };
 }
-const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
-const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
-const STATION_MAX_ACTIVE = 2;
 
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],buildingPowerAssignments:{}};
-let nextBuildingId = 1;
-let showLandValueOverlay = false;
-let showCrimeOverlay = false;
-let highlightedBuilding = null; // {x, y, w, h} of highlighted building
+function allocatePowerToBuildings() {
+  if (!st.powerShortageBuildings || typeof st.powerShortageBuildings !== 'object') {
+    st.powerShortageBuildings = {};
+  }
+  const snapshot = getPowerSystemSnapshot();
+  const shortageMap = {};
+  const connectedBuildings = [];
+  
+  for (const consumer of snapshot.consumers) {
+    if (!consumer.hasConnection) {
+      shortageMap[consumer.key] = true;
+    } else if (consumer.consumption > 0) {
+      connectedBuildings.push(consumer);
+    }
+  }
+  
+  const typePriority = {residential:0, commercial:1, industrial:2};
+  connectedBuildings.sort((a,b) => {
+    const typeDiff = (typePriority[a.type] ?? 99) - (typePriority[b.type] ?? 99);
+    if (typeDiff !== 0) return typeDiff;
+    if (b.level !== a.level) return b.level - a.level;
+    if (a.consumption !== b.consumption) return a.consumption - b.consumption;
+    return a.key.localeCompare(b.key);
+  });
+  
+  let remainingPower = snapshot.totalPowerGeneration;
+  for (const building of connectedBuildings) {
+    if (remainingPower >= building.consumption) {
+      remainingPower -= building.consumption;
+    } else {
+      shortageMap[building.key] = true;
+    }
+  }
+  
+  st.powerShortageBuildings = shortageMap;
+}
+
+// Calculate power generation and consumption statistics
+function calculatePowerStats(includeDetails = false) {
+  const snapshot = getPowerSystemSnapshot();
+  const result = {
+    totalPowerGeneration: snapshot.totalPowerGeneration,
+    totalPowerConsumption: snapshot.totalPowerConsumption,
+    powerSurplus: snapshot.totalPowerGeneration - snapshot.totalPowerConsumption
+  };
+  
+  if (includeDetails) {
+    result.coalGen = snapshot.coalGen;
+    result.nuclearGen = snapshot.nuclearGen;
+    result.windGen = snapshot.windGen;
+    result.coalCount = snapshot.coalCount;
+    result.nuclearCount = snapshot.nuclearCount;
+    result.windCount = snapshot.windCount;
+    result.residentialConsumption = snapshot.residentialConsumption;
+    result.commercialConsumption = snapshot.commercialConsumption;
+    result.industrialConsumption = snapshot.industrialConsumption;
+  }
+  
+  return result;
+}
 
 const cvs = document.getElementById('canvas'), ctx = cvs.getContext('2d');
 cvs.width = GR_SZ * CL_SZ; cvs.height = GR_SZ * CL_SZ;
 
+// ===== Terrain & Grid =====
 function genTerr(t) {
   const tr = [];
   for (let y=0; y<GR_SZ; y++) { const r=[]; for (let x=0; x<GR_SZ; x++) r.push('grass'); tr.push(r); }
@@ -469,15 +603,16 @@ function normalizeEmptyCell(x,y) {
 
 function initGr(tt='balanced') {
   st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[]; st.stationDispatches={};
-  st.powerGrid=[];
-  st.buildingPowerAssignments={};
+  st.powerShortageBuildings={};
   for (let y=0; y<GR_SZ; y++) {
-    const r=[], vr=[], cr=[], pg=[];
-    for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); pg.push(false); }
-    st.grid.push(r); st.landValue.push(vr); st.crime.push(cr); st.powerGrid.push(pg);
+    const r=[], vr=[], cr=[];
+    for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); }
+    st.grid.push(r); st.landValue.push(vr); st.crime.push(cr);
   }
+  initPowerGrid();
 }
 
+// ===== Save/Load =====
 function sv() { try { localStorage.setItem('simcity_state',JSON.stringify(st)); } catch(e) {} }
 function ld() {
   try {
@@ -487,7 +622,7 @@ function ld() {
         if (p.grid && p.grid.length===GR_SZ) {
         st=p;
         if (!st.rDemand) st.rDemand=50; if (!st.cDemand) st.cDemand=50; if (!st.iDemand) st.iDemand=50;
-        if (!st.year) st.year=1990; if (!st.newsEvents) st.newsEvents=[]; if (!st.ticksSinceNews) st.ticksSinceNews=0;
+        if (!st.year) st.year=1950; if (!st.newsEvents) st.newsEvents=[]; if (!st.ticksSinceNews) st.ticksSinceNews=0;
         if (st.taxRate===undefined) st.taxRate=10; // Default 10% tax rate
         if (!st.terrain) st.terrain=genTerr('balanced'); if (!st.landValue) { st.landValue=[]; for (let y=0; y<GR_SZ; y++) { const vr=[]; for (let x=0; x<GR_SZ; x++) vr.push(50); st.landValue.push(vr); } }
         if (!st.crime) { st.crime=[]; for (let y=0; y<GR_SZ; y++) { const cr=[]; for (let x=0; x<GR_SZ; x++) cr.push(30); st.crime.push(cr); } }
@@ -500,15 +635,10 @@ function ld() {
           }
         if (!st.zoom) st.zoom=1;
         if (st.disastersEnabled === undefined) st.disastersEnabled = true;
-        if (!st.powerGrid) {
-          st.powerGrid = [];
-          for (let y=0; y<GR_SZ; y++) {
-            const pg = [];
-            for (let x=0; x<GR_SZ; x++) pg.push(false);
-            st.powerGrid.push(pg);
-          }
+        if (!st.powerGrid) initPowerGrid();
+        if (!st.powerShortageBuildings || typeof st.powerShortageBuildings !== 'object') {
+          st.powerShortageBuildings = {};
         }
-          if (!st.buildingPowerAssignments) st.buildingPowerAssignments = {};
         for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) { 
           if (!st.grid[y][x].level) st.grid[y][x].level=0; 
           if (!st.grid[y][x].w) st.grid[y][x].w=1; 
@@ -528,6 +658,7 @@ function ld() {
   return false;
 }
 
+// ===== Rendering =====
 function isRd(x,y) { if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return false; return st.grid[y][x].type==='road'; }
 function getRdNb(x,y) { return {top:isRd(x,y-1),right:isRd(x+1,y),bottom:isRd(x,y+1),left:isRd(x-1,y)}; }
 
@@ -553,6 +684,7 @@ function drRd(px,py,nb) {
     else { ctx.fillRect(px,py+6,CL_SZ,4); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+4,py+7,2,2); ctx.fillRect(px+CL_SZ-6,py+7,2,2); }
   } else { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillStyle='#5a5a5a'; ctx.fillRect(px+7,py+4,2,2); ctx.fillRect(px+7,py+CL_SZ-6,2,2); }
 }
+
 function drTl(x,y,tp,lv,ab,w,h) {
   const px=x*CL_SZ, py=y*CL_SZ, wd=w*CL_SZ, ht=h*CL_SZ, tr=st.terrain[y][x];
   const c = st.grid[y][x];
@@ -560,15 +692,20 @@ function drTl(x,y,tp,lv,ab,w,h) {
   // Check if building needs power but doesn't have it
   let needsPowerButNoPower = false;
   if (!ab && (tp === 'residential' || tp === 'commercial' || tp === 'industrial')) {
-      const level = lv || 0;
-      const needsPower = getPowerConsumption(tp, level) > 0;
-      if (needsPower) {
-        const hasPower = hasPowerAccess(x, y);
-        if (!hasPower) {
-          needsPowerButNoPower = true;
-        }
+    const level = lv || 0;
+    let needsPower = false;
+    if (tp === 'residential' && (level === 2 || level === 3)) {
+      needsPower = true;
+    } else if (tp === 'commercial' || tp === 'industrial') {
+      needsPower = true;
+    }
+    if (needsPower) {
+        const hasPower = buildingHasPower(x, y);
+      if (!hasPower) {
+        needsPowerButNoPower = true;
       }
     }
+  }
   if (tp==='empty') {
     if (tr==='water') ctx.fillStyle='#1e40af'; 
     else if (tr==='cliff') ctx.fillStyle='#3e2723'; 
@@ -832,21 +969,51 @@ function drTl(x,y,tp,lv,ab,w,h) {
     }
   } else if (tp==='police') { 
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
-    ctx.fillStyle='#000080'; ctx.fillRect(px+2,py+4,12,10); 
-    ctx.fillStyle='#0000a0'; ctx.fillRect(px+2,py+4,12,4); 
-    ctx.fillStyle='#87ceeb'; ctx.fillRect(px+4,py+7,3,3); ctx.fillRect(px+9,py+7,3,3); 
-    ctx.fillStyle='#ff0000'; ctx.fillRect(px+6,py+5,4,1); 
-    ctx.fillStyle='#0000ff'; ctx.fillRect(px+6,py+6,4,1); 
-    ctx.fillStyle='#4a4a4a'; ctx.fillRect(px+6,py+11,4,3); 
+    ctx.fillStyle='#000080'; ctx.fillRect(px+2,py+6,12,10); 
+    ctx.fillStyle='#0000a0'; ctx.fillRect(px+2,py+6,12,4); 
+    ctx.fillStyle='#ff0000'; ctx.fillRect(px+6,py+7,4,1); 
+    ctx.fillStyle='#0000ff'; ctx.fillRect(px+6,py+8,4,1); 
+    ctx.fillStyle='#4a4a4a'; ctx.fillRect(px+6,py+13,4,3); 
   }
   else if (tp==='fire') { 
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
-    ctx.fillStyle='#8b0000'; ctx.fillRect(px+2,py+4,12,10); 
-    ctx.fillStyle='#a00000'; ctx.fillRect(px+2,py+4,12,4); 
-    ctx.fillStyle='#444444'; ctx.fillRect(px+4,py+7,3,3); ctx.fillRect(px+9,py+7,3,3); 
-    ctx.fillStyle='#ff4500'; ctx.fillRect(px+6,py+5,4,2); 
-    ctx.fillStyle='#ffd700'; ctx.fillRect(px+7,py+6,2,1); 
-    ctx.fillStyle='#4a4a4a'; ctx.fillRect(px+6,py+11,4,3); 
+    ctx.fillStyle='#8b0000'; ctx.fillRect(px+2,py+6,12,10); 
+    ctx.fillStyle='#a00000'; ctx.fillRect(px+2,py+6,12,4); 
+    ctx.fillStyle='#5a2a2a'; ctx.fillRect(px+6,py+13,4,3);
+    
+    // Animated flame on top
+    const flameAnim = (Date.now() / 150) % 6;
+    const flameFrame = Math.floor(flameAnim);
+    
+    // Base flame (orange/red) - flickers
+    const baseHeight = flameFrame < 3 ? 3 : 2;
+    ctx.fillStyle = flameFrame % 2 === 0 ? '#ff4500' : '#ff6600';
+    ctx.beginPath();
+    ctx.moveTo(px+6, py+8);
+    ctx.lineTo(px+7, py+8-baseHeight);
+    ctx.lineTo(px+8, py+8-baseHeight+1);
+    ctx.lineTo(px+9, py+8-baseHeight);
+    ctx.lineTo(px+10, py+8);
+    ctx.lineTo(px+8, py+9);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Inner flame (yellow) - smaller flicker
+    const innerHeight = flameFrame < 2 ? 2 : 1;
+    ctx.fillStyle = flameFrame < 4 ? '#ffd700' : '#ffaa00';
+    ctx.beginPath();
+    ctx.moveTo(px+7, py+8);
+    ctx.lineTo(px+8, py+8-innerHeight);
+    ctx.lineTo(px+9, py+8);
+    ctx.lineTo(px+8, py+9);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Hot core (white/yellow)
+    if (flameFrame < 3) {
+      ctx.fillStyle = '#ffff00';
+      ctx.fillRect(px+8, py+7, 1, 1);
+    }
   }
   else if (tp==='school') { 
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ); 
@@ -1079,6 +1246,7 @@ function drTl(x,y,tp,lv,ab,w,h) {
     }
   }
 }
+
 function drGr() {
   ctx.clearRect(0,0,cvs.width,cvs.height); const drn={};
   for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
@@ -1279,6 +1447,8 @@ function drGr() {
     
     // Determine car direction for rotation
     let angle = 0; // Default: horizontal (0 degrees)
+    const isReturning = c.mission && c.mission.returning;
+    
     if (c.path && c.path.length > 1 && c.pathIdx < c.path.length - 1) {
       const curNode = c.path[c.pathIdx];
       const nextNode = c.path[c.pathIdx + 1];
@@ -1289,6 +1459,10 @@ function drGr() {
       if (Math.abs(dy) > Math.abs(dx)) {
         angle = Math.PI / 2; // 90 degrees
       }
+      // If returning, reverse the direction (add 180 degrees)
+      if (isReturning) {
+        angle += Math.PI;
+      }
     } else if (c.entering && c.entryTarget) {
       // Check direction to entry target
       const dx = c.entryTarget.x - c.x;
@@ -1296,12 +1470,20 @@ function drGr() {
       if (Math.abs(dy) > Math.abs(dx)) {
         angle = Math.PI / 2;
       }
+      // If returning, reverse the direction
+      if (isReturning) {
+        angle += Math.PI;
+      }
     } else if (c.exiting && c.exitTarget) {
       // Check direction to exit target
       const dx = c.exitTarget.x - c.x;
       const dy = c.exitTarget.y - c.y;
       if (Math.abs(dy) > Math.abs(dx)) {
         angle = Math.PI / 2;
+      }
+      // If returning, reverse the direction
+      if (isReturning) {
+        angle += Math.PI;
       }
     } else if (c.path && c.path.length > 0 && c.pathIdx < c.path.length) {
       // Fallback: check movement direction from current position
@@ -1311,6 +1493,65 @@ function drGr() {
         const dy = nextTarget.ty - c.y;
         if (Math.abs(dy) > Math.abs(dx)) {
           angle = Math.PI / 2;
+        }
+        // If returning, reverse the direction
+        if (isReturning) {
+          angle += Math.PI;
+        }
+      }
+    }
+    
+    // Special handling for returning vehicles when path is very short or at end
+    // Use direction to station when station is adjacent to scene
+    if (isReturning && c.stationRoad && angle === 0) {
+      // Check if we need to calculate angle based on direction to station
+      // This handles cases where path is very short (station adjacent to scene)
+      const pathTooShort = !c.path || c.path.length <= 1;
+      const atPathEnd = c.path && c.pathIdx >= c.path.length - 1;
+      const noClearDirection = !c.entering && !c.exiting && !c.entryTarget && !c.exitTarget;
+      
+      if (pathTooShort || (atPathEnd && noClearDirection)) {
+        // Try to get direction from path if available (even if at end)
+        if (c.path && c.path.length >= 2 && c.pathIdx < c.path.length) {
+          const curNode = c.path[Math.min(c.pathIdx, c.path.length - 1)];
+          const prevNode = c.pathIdx > 0 ? c.path[c.pathIdx - 1] : null;
+          const nextNode = c.pathIdx < c.path.length - 1 ? c.path[c.pathIdx + 1] : null;
+          
+          if (nextNode) {
+            // Use next node direction
+            const dx = nextNode.x - curNode.x;
+            const dy = nextNode.y - curNode.y;
+            if (Math.abs(dy) > Math.abs(dx)) {
+              angle = Math.PI / 2;
+            }
+            angle += Math.PI; // Reverse for returning
+          } else if (prevNode) {
+            // Use previous node direction (we're moving from prev to current)
+            const dx = curNode.x - prevNode.x;
+            const dy = curNode.y - prevNode.y;
+            if (Math.abs(dy) > Math.abs(dx)) {
+              angle = Math.PI / 2;
+            }
+            angle += Math.PI; // Reverse for returning
+          }
+        }
+        
+        // Fallback: use direction to station
+        if (angle === 0) {
+          const stationCenter = getRoadCenterCoords(c.stationRoad);
+          const dx = stationCenter.x - c.x;
+          const dy = stationCenter.y - c.y;
+          // Only update if we have a meaningful direction
+          if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
+            // Calculate base angle based on direction to station
+            if (Math.abs(dy) > Math.abs(dx)) {
+              angle = Math.PI / 2;
+            } else {
+              angle = 0;
+            }
+            // For returning vehicles, reverse the direction (face backward/away from station)
+            angle += Math.PI;
+          }
         }
       }
     }
@@ -1547,19 +1788,55 @@ function getCurrentRoadNode(car) {
   return null;
 }
 
-function findNearestStation(targetX, targetY, stationType) {
-  // Find nearest road to target location
-  const targetRoads = [];
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const nx = targetX + dx, ny = targetY + dy;
-      if (nx >= 0 && nx < GR_SZ && ny >= 0 && ny < GR_SZ) {
+function findPreferredAdjacentRoad(x,y) {
+  const primaryDirs = [
+    {dx:0,dy:-1},{dx:1,dy:0},{dx:0,dy:1},{dx:-1,dy:0}
+  ];
+  const diagonalDirs = [
+    {dx:-1,dy:-1},{dx:1,dy:-1},{dx:1,dy:1},{dx:-1,dy:1}
+  ];
+  for (const dirs of [primaryDirs, diagonalDirs]) {
+    for (const {dx,dy} of dirs) {
+      const nx = x + dx, ny = y + dy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
         if (st.grid[ny][nx].type === 'road') {
-          targetRoads.push({x: nx, y: ny});
+          return {x:nx,y:ny};
         }
       }
     }
   }
+  return null;
+}
+
+function isWithinCoverageRange(targetX, targetY, checkX, checkY) {
+  // Check if checkX,checkY is within 2 tiles of targetX,targetY
+  // This covers 2x2, 2x1, 1x2 buildings
+  const dx = Math.abs(checkX - targetX);
+  const dy = Math.abs(checkY - targetY);
+  return dx <= 2 && dy <= 2;
+}
+
+function findNearestStation(targetX, targetY, stationType) {
+  // Find nearest road to target location - check up to 2 tiles away
+  const targetRoads = [];
+  
+  // Check all roads within 2 tiles (orthogonal and diagonal)
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = targetX + dx, ny = targetY + dy;
+      if (nx >= 0 && nx < GR_SZ && ny >= 0 && ny < GR_SZ) {
+        if (st.grid[ny][nx].type === 'road') {
+          const dist = Math.abs(dx) + Math.abs(dy);
+          targetRoads.push({x: nx, y: ny, distToBuilding: dist});
+        }
+      }
+    }
+  }
+  
+  // Sort by distance (closest first)
+  targetRoads.sort((a, b) => a.distToBuilding - b.distToBuilding);
+  
   if (targetRoads.length === 0) return null;
   
   // Find all stations of the requested type
@@ -1568,40 +1845,33 @@ function findNearestStation(targetX, targetY, stationType) {
     for (let x = 0; x < GR_SZ; x++) {
       const c = st.grid[y][x];
       if (c.type === stationType && hasRdAcc(x, y)) {
-        // Find nearest road to this station
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const nx = x + dx, ny = y + dy;
-            if (nx >= 0 && nx < GR_SZ && ny >= 0 && ny < GR_SZ) {
-              if (st.grid[ny][nx].type === 'road') {
-                stations.push({stationX: x, stationY: y, roadX: nx, roadY: ny});
-                break;
-              }
-            }
-          }
+        const adjacentRoad = findPreferredAdjacentRoad(x,y);
+        if (adjacentRoad) {
+          stations.push({stationX: x, stationY: y, roadX: adjacentRoad.x, roadY: adjacentRoad.y});
         }
       }
     }
   }
   if (stations.length === 0) return null;
   
-  // Find nearest station by pathfinding distance
-  let nearestStation = null;
-  let minDistance = Infinity;
-  
-  // Use a more efficient search - limit pathfinding to reasonable distances for emergency dispatch
-  for (const station of stations) {
-    // Quick distance check first (Manhattan distance) to skip obviously too far stations
-    const stationKey = getStationKeyFromCoords(station.stationX, station.stationY);
-    if (getStationDispatchCount(stationKey) >= STATION_MAX_ACTIVE) continue;
-    for (const targetRoad of targetRoads) {
+  // Find nearest station - prioritize closest road to building
+  // Try each target road in order (closest to building first)
+  for (const targetRoad of targetRoads) {
+    let bestStationForThisRoad = null;
+    let minPathLength = Infinity;
+    
+    // Find the nearest station that can reach this specific target road
+    for (const station of stations) {
+      const stationKey = getStationKeyFromCoords(station.stationX, station.stationY);
+      if (getStationDispatchCount(stationKey) >= STATION_MAX_ACTIVE) continue;
+      
       const manhattanDist = Math.abs(station.roadX - targetRoad.x) + Math.abs(station.roadY - targetRoad.y);
       if (manhattanDist > 100) continue; // Skip stations that are clearly too far
       
       const path = findPath(station.roadX, station.roadY, targetRoad.x, targetRoad.y, 100);
-      if (path && path.length < minDistance) {
-        minDistance = path.length;
-        nearestStation = {
+      if (path && path.length < minPathLength) {
+        minPathLength = path.length;
+        bestStationForThisRoad = {
           stationX: station.stationX,
           stationY: station.stationY,
           roadX: station.roadX,
@@ -1610,14 +1880,17 @@ function findNearestStation(targetX, targetY, stationType) {
           targetRoadY: targetRoad.y,
           path: path
         };
-        // Early exit if we find a very close station (within 10 tiles)
-        if (path.length <= 10) break;
       }
     }
-    if (nearestStation && nearestStation.path && nearestStation.path.length <= 10) break;
+    
+    // If we found a station that can reach this road, use it
+    // This ensures we park at the closest road to the building
+    if (bestStationForThisRoad) {
+      return bestStationForThisRoad;
+    }
   }
   
-  return nearestStation;
+  return null;
 }
 
 function dispatchEmergencyVehicle(stationType, targetX, targetY, missionType) {
@@ -1650,27 +1923,28 @@ function dispatchEmergencyVehicle(stationType, targetX, targetY, missionType) {
   }
   
   const stationBuilding = {x: station.stationX, y: station.stationY};
+  const roadCenter = getRoadCenterCoords(start);
   const entryDir = getEdgeDirection(stationBuilding, start);
   let entryTarget = null;
   let entering = false;
-  let spawnX = startX;
-  let spawnY = startY;
+  let spawnX = roadCenter.x;
+  let spawnY = roadCenter.y;
   
   if (entryDir.x !== 0 || entryDir.y !== 0) {
     entering = true;
     entryTarget = {x: startX, y: startY};
-    if (Math.abs(entryDir.x) >= Math.abs(entryDir.y) && entryDir.x !== 0) {
-      spawnX = startCenterX + entryDir.x * CAR_EDGE_OFFSET;
-      spawnY = startY;
-    } else if (entryDir.y !== 0) {
-      spawnY = startCenterY + entryDir.y * CAR_EDGE_OFFSET;
-      spawnX = startX;
-    }
+  } else if (startX !== roadCenter.x || startY !== roadCenter.y) {
+    entering = true;
+    entryTarget = {x: startX, y: startY};
   }
   
   // Fire trucks: red (will be styled with lights), Police cars: very dark gray (will be styled with lights)
   const color = stationType === 'fire' ? '#ff0000' : '#1a1a1a';
   const vehicleType = stationType === 'fire' ? 'fire' : 'police';
+  
+  // Scene road is the last node in the path (where vehicle will actually arrive)
+  const sceneRoadNode = path[path.length - 1];
+  const sceneParkingCenter = getRoadCenterCoords(sceneRoadNode);
   
   st.cars.push({
     x: spawnX,
@@ -1688,7 +1962,9 @@ function dispatchEmergencyVehicle(stationType, targetX, targetY, missionType) {
     exitTarget: null,
     positioningForExit: false,
     stationRoad: { x: start.x, y: start.y },
-    sceneRoad: { x: end.x, y: end.y },
+    sceneRoad: { x: sceneRoadNode.x, y: sceneRoadNode.y },
+    sceneParkingTarget: sceneParkingCenter,
+    scenePositioning: false,
     missionPhase: 'enroute',
     stationKey: stationKey,
     stationCoords: { x: station.stationX, y: station.stationY },
@@ -1709,10 +1985,12 @@ function getRoadCenterCoords(node) {
   if (!node) return { x: 0, y: 0 };
   return { x: node.x * CL_SZ + 7, y: node.y * CL_SZ + 7 };
 }
+
 function prepareEmergencyVehicleReturn(car, opts={}) {
   if (!car || !car.mission || car.mission.returning) return;
   
-  const startRoad = getCurrentRoadNode(car);
+  // Use sceneRoad (where vehicle parked) as the starting point for return path
+  const startRoad = car.sceneRoad || getCurrentRoadNode(car);
   const stationRoad = car.stationRoad;
   if (!startRoad || !stationRoad) {
     car.removeOnNextTick = true;
@@ -1722,10 +2000,10 @@ function prepareEmergencyVehicleReturn(car, opts={}) {
   
   if (!opts.skipSceneDecrement && car.mission.arrived) {
     if (car.mission.type === 'fire') {
-      const fire = st.fires.find(f => f.x === car.mission.targetX && f.y === car.mission.targetY);
+      const fire = st.fires.find(f => isWithinCoverageRange(car.mission.targetX, car.mission.targetY, f.x, f.y));
       if (fire && fire.fireTrucksAtScene>0) fire.fireTrucksAtScene--;
     } else if (car.mission.type === 'crime') {
-      const crime = st.crimeEvents.find(evt => evt.x === car.mission.targetX && evt.y === car.mission.targetY);
+      const crime = st.crimeEvents.find(evt => isWithinCoverageRange(car.mission.targetX, car.mission.targetY, evt.x, evt.y));
       if (crime && crime.policeCarsAtScene>0) crime.policeCarsAtScene--;
     }
   }
@@ -1747,6 +2025,8 @@ function prepareEmergencyVehicleReturn(car, opts={}) {
   car.exitTarget = null;
   car.reverse = false;
   car.holdPosition = null;
+  car.scenePositioning = false;
+  car.sceneParkingTarget = null;
   
   const startCenter = getRoadCenterCoords(returnPath[0]);
   car.x = startCenter.x;
@@ -1768,6 +2048,7 @@ function prepareEmergencyVehicleReturn(car, opts={}) {
   car.entryTarget = { x: entryX, y: entryY };
 
   const stationBuilding = car.stationCoords || { x: car.stationRoad.x, y: car.stationRoad.y };
+  const parkingCenter = car.stationRoad ? getRoadCenterCoords(car.stationRoad) : getRoadCenterCoords(endNode);
   const endIdx = returnPath.length - 1;
   const endNode = returnPath[endIdx];
   const endCenterX = endNode.x * CL_SZ + 7;
@@ -1784,28 +2065,12 @@ function prepareEmergencyVehicleReturn(car, opts={}) {
     }
   }
   const exitDir = getEdgeDirection(stationBuilding, stationRoad);
-  let exitTarget = null;
+  let exitTarget = parkingCenter;
+  if (!exitTarget || Number.isNaN(exitTarget.x) || Number.isNaN(exitTarget.y)) {
+    exitTarget = { x: exitLaneX, y: exitLaneY };
+  }
   if (exitDir.x !== 0 || exitDir.y !== 0) {
-    exitTarget = { x: exitLaneX, y: exitLaneY };
-    if (Math.abs(exitDir.x) >= Math.abs(exitDir.y) && exitDir.x !== 0) {
-      exitTarget.x = endCenterX + exitDir.x * CAR_EDGE_OFFSET;
-    } else if (exitDir.y !== 0) {
-      exitTarget.y = endCenterY + exitDir.y * CAR_EDGE_OFFSET;
-    }
-  } else {
-    // If no direction detected, use a default offset toward the station
-    exitTarget = { x: exitLaneX, y: exitLaneY };
-    // Try to find direction from road to station building
-    const dx = stationBuilding.x - stationRoad.x;
-    const dy = stationBuilding.y - stationRoad.y;
-    if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) {
-      exitTarget.x = endCenterX + (dx > 0 ? CAR_EDGE_OFFSET : -CAR_EDGE_OFFSET);
-    } else if (dy !== 0) {
-      exitTarget.y = endCenterY + (dy > 0 ? CAR_EDGE_OFFSET : -CAR_EDGE_OFFSET);
-    } else {
-      // Station is on the road tile, just offset slightly
-      exitTarget.x = endCenterX + CAR_EDGE_OFFSET;
-    }
+    exitTarget = parkingCenter;
   }
   car.exitLaneTarget = { x: exitLaneX, y: exitLaneY };
   car.exitTarget = exitTarget;
@@ -1815,7 +2080,7 @@ function prepareEmergencyVehicleReturn(car, opts={}) {
 function sendEmergencyVehiclesHome(missionType, targetX, targetY) {
   st.cars.forEach(car => {
     if (!car.mission || car.mission.returning) return;
-    if (car.mission.type===missionType && car.mission.targetX===targetX && car.mission.targetY===targetY) {
+    if (car.mission.type===missionType && isWithinCoverageRange(car.mission.targetX, car.mission.targetY, targetX, targetY)) {
       prepareEmergencyVehicleReturn(car);
     }
   });
@@ -1854,10 +2119,10 @@ function attemptMissionArrival(car) {
         }
       if (!car.arrivalLogged) {
         if (car.mission.type === 'fire') {
-          const fire = st.fires.find(f => f.x === car.mission.targetX && f.y === car.mission.targetY);
+          const fire = st.fires.find(f => isWithinCoverageRange(car.mission.targetX, car.mission.targetY, f.x, f.y));
           if (fire) fire.fireTrucksAtScene = (fire.fireTrucksAtScene || 0) + 1;
         } else if (car.mission.type === 'crime') {
-          const crime = st.crimeEvents.find(evt => evt.x === car.mission.targetX && evt.y === car.mission.targetY);
+          const crime = st.crimeEvents.find(evt => isWithinCoverageRange(car.mission.targetX, car.mission.targetY, evt.x, evt.y));
           if (crime) crime.policeCarsAtScene = (crime.policeCarsAtScene || 0) + 1;
         }
         car.arrivalLogged = true;
@@ -1873,8 +2138,11 @@ function attemptMissionArrival(car) {
 function countActiveResponders(missionType, targetX, targetY) {
   if (!st.cars) return 0;
   return st.cars.reduce((sum, car) => {
-    if (car.mission && !car.mission.returning && car.mission.type===missionType && car.mission.targetX===targetX && car.mission.targetY===targetY) {
-      return sum+1;
+    if (car.mission && !car.mission.returning && car.mission.type===missionType) {
+      // Check if vehicle's target is within 2 tiles of the requested location
+      if (isWithinCoverageRange(car.mission.targetX, car.mission.targetY, targetX, targetY)) {
+        return sum+1;
+      }
     }
     return sum;
   },0);
@@ -2057,17 +2325,17 @@ function updCars() {
       };
       if (c.removeOnNextTick) return finalizeRemoval();
     
-    if (c.mission && !c.mission.returning) {
+      if (c.mission && !c.mission.returning) {
       const targetGridX = c.mission.targetX;
       const targetGridY = c.mission.targetY;
       let targetExists = false;
       if (c.mission.type === 'fire') {
-        targetExists = st.fires.some(f => f.x === targetGridX && f.y === targetGridY);
+        targetExists = st.fires.some(f => isWithinCoverageRange(targetGridX, targetGridY, f.x, f.y));
       } else if (c.mission.type === 'crime') {
-        targetExists = st.crimeEvents.some(evt => evt.x === targetGridX && evt.y === targetGridY);
+        targetExists = st.crimeEvents.some(evt => isWithinCoverageRange(targetGridX, targetGridY, evt.x, evt.y));
       }
       
-      if (!targetExists) {
+        if (!targetExists) {
         prepareEmergencyVehicleReturn(c);
         } else if (!c.mission.arrived) {
           if (attemptMissionArrival(c)) return true;
@@ -2110,7 +2378,7 @@ function updCars() {
     
     // Helper to initiate exit sequence
     const startExitSequence = () => {
-      if (c.exitLaneTarget) {
+        if (c.exitLaneTarget) {
         c.positioningForExit = true;
       } else if (c.exitTarget) {
         c.exiting = true;
@@ -2124,7 +2392,7 @@ function updCars() {
       // Determine target based on current car state
       let targetStage, tx, ty;
       
-      if (c.entering && c.entryTarget) {
+        if (c.entering && c.entryTarget) {
         targetStage = 'entry';
         tx = c.entryTarget.x;
         ty = c.entryTarget.y;
@@ -2141,24 +2409,36 @@ function updCars() {
         if (isAtPathEnd()) {
           // Mission vehicles that haven't arrived yet
           if (c.mission && !c.mission.returning) {
-            if (attemptMissionArrival(c)) return true;
-            c.holdPosition = c.holdPosition || { x: c.x, y: c.y };
-            c.x = c.holdPosition.x;
-            c.y = c.holdPosition.y;
-            return true;
+            // For emergency vehicles, move to exact center of scene road tile
+            if (c.sceneRoad && (c.type === 'police' || c.type === 'fire')) {
+              const sceneCenter = getRoadCenterCoords(c.sceneRoad);
+              // Set this as our target for final approach
+              targetStage = 'finalApproach';
+              tx = sceneCenter.x;
+              ty = sceneCenter.y;
+              // Continue to movement logic below
+            } else {
+              // Non-emergency vehicles
+              if (attemptMissionArrival(c)) return true;
+              c.holdPosition = c.holdPosition || { x: c.x, y: c.y };
+              c.x = c.holdPosition.x;
+              c.y = c.holdPosition.y;
+              return true;
+            }
+          } else {
+            // Start exit sequence or despawn
+            if (!startExitSequence()) {
+              return finalizeRemoval();
+            }
+            continue;
           }
-          // Start exit sequence or despawn
-          if (!startExitSequence()) {
-            return finalizeRemoval();
-          }
-          continue;
+        } else {
+          // Normal path following
+          targetStage = 'path';
+          const nextTarget = getCarSegmentTarget(c);
+          tx = nextTarget.tx;
+          ty = nextTarget.ty;
         }
-        
-        // Normal path following
-        targetStage = 'path';
-        const nextTarget = getCarSegmentTarget(c);
-        tx = nextTarget.tx;
-        ty = nextTarget.ty;
       }
       
       // Move toward target
@@ -2167,7 +2447,7 @@ function updCars() {
       const dist = Math.sqrt(dx * dx + dy * dy);
       
       // Snap to target when very close
-      if (dist < CAR_SNAP_THRESHOLD) {
+        if (dist < CAR_SNAP_THRESHOLD) {
         c.x = tx;
         c.y = ty;
         
@@ -2184,13 +2464,17 @@ function updCars() {
           }
         } else if (targetStage === 'exit') {
           return finalizeRemoval();
+        } else if (targetStage === 'finalApproach') {
+          // Emergency vehicle reached exact parking position
+          c.laneOffset = 0; // Clear lane offset for clean parking
+          if (attemptMissionArrival(c)) return true;
+          c.holdPosition = { x: c.x, y: c.y };
+          return true;
         } else {
           // Advance path
           c.pathIdx++;
           if (isAtPathEnd()) {
-            if (!startExitSequence()) {
-              return finalizeRemoval();
-            }
+            // Will be handled in next iteration
           } else {
             updateCarLaneOffset(c);
           }
@@ -2223,6 +2507,7 @@ function updCars() {
   }
 }
 
+// ===== UI Updates =====
 function updInpWd() {
   const inp=document.getElementById('cityName'), tmp=document.createElement('span');
   tmp.style.font=window.getComputedStyle(inp).font; tmp.style.visibility='hidden'; tmp.style.position='absolute'; tmp.style.whiteSpace='pre';
@@ -2267,9 +2552,6 @@ function updNwsTk() {
   }
 }
 
-const STAT_INFO_TYPES = ['rci','pop','money','happy'];
-let currentInfoType = null;
-
 function shwInfo(title,content,infoType) {
   plySnd('click');
   const pnl=document.getElementById('infoPanel');
@@ -2299,16 +2581,29 @@ function shwInfo(title,content,infoType) {
   }
 }
 
+// Format numbers compactly (e.g., $1.5M, $234.5k)
+function fmtCompact(num) {
+  const absNum = Math.abs(num);
+  if (absNum >= 1000000) {
+    return `${(num/1000000).toFixed(1)}M`;
+  } else if (absNum >= 1000) {
+    return `${(num/1000).toFixed(1)}k`;
+  }
+  return num.toString();
+}
+
 function updUI() {
   const inp=document.getElementById('cityName'); if (!edtNm) { inp.value=st.cityName; updInpWd(); }
-  document.getElementById('population').textContent=st.population.toLocaleString();
-  document.getElementById('money').textContent=`${(st.money/1000).toFixed(0)}k`;
+  document.getElementById('population').textContent=fmtCompact(st.population);
+  document.getElementById('money').textContent=fmtCompact(st.money);
   document.getElementById('happiness').textContent=st.happiness;
   
   // Calculate and update power status
-  const {generation: totalPowerGeneration, demand: totalPowerConsumption, surplus: powerSurplus} = getPowerSummary();
+  const powerStats = calculatePowerStats();
   const powerEl = document.getElementById('power');
-  powerEl.textContent = `${totalPowerGeneration}/${totalPowerConsumption}`;
+  const powerSurplus = powerStats.powerSurplus;
+  const surplusDisplay = powerSurplus >= 0 ? `+${powerSurplus}` : powerSurplus.toString();
+  powerEl.textContent = surplusDisplay;
   if (powerSurplus < 0) {
     powerEl.classList.remove('text-white', 'text-green-400', 'text-yellow-400');
     powerEl.classList.add('text-red-400');
@@ -2317,21 +2612,22 @@ function updUI() {
     powerEl.classList.add('text-white');
   }
   
-    if (!edtNm) {
-      const monthIndex = Math.floor((st.tickCount % TICKS_PER_YEAR) / TICKS_PER_MONTH);
-      const monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-      document.getElementById('yearDisplay').textContent=`${monthNames[monthIndex]} ${st.year}`;
-    }
+  if (!edtNm) {
+    const month = (st.tickCount % 12) + 1;
+    const monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    document.getElementById('yearDisplay').textContent=`${monthNames[month-1]} ${st.year}`;
+  }
   const mEl=document.getElementById('money');
   if (st.money<0) { mEl.classList.remove('text-white'); mEl.classList.add('text-red-400'); }
   else { mEl.classList.remove('text-red-400'); mEl.classList.add('text-white'); }
   const rB=document.getElementById('rDemand'), cB=document.getElementById('cDemand'), iB=document.getElementById('iDemand');
   rB.style.height=`${st.rDemand}%`; cB.style.height=`${st.cDemand}%`; iB.style.height=`${st.iDemand}%`;
-  rB.parentElement.style.display='flex'; rB.parentElement.style.flexDirection='column'; rB.parentElement.style.justifyContent='flex-end';
-  cB.parentElement.style.display='flex'; cB.parentElement.style.flexDirection='column'; cB.parentElement.style.justifyContent='flex-end';
-  iB.parentElement.style.display='flex'; iB.parentElement.style.flexDirection='column'; iB.parentElement.style.justifyContent='flex-end';
+  [rB,cB,iB].forEach(el => { el.parentElement.style.display='flex'; el.parentElement.style.flexDirection='column'; el.parentElement.style.justifyContent='flex-end'; });
   const sBtn=document.getElementById('speedToggle');
-  if (st.speed===0) sBtn.textContent='⏸'; else if (st.speed===3000) sBtn.textContent='1x'; else if (st.speed===1500) sBtn.textContent='2x'; else if (st.speed===500) sBtn.textContent='3x';
+  if (st.speed===0) sBtn.textContent='⏸';
+  else if (st.speed===3000) sBtn.textContent='1x';
+  else if (st.speed===1500) sBtn.textContent='2x';
+  else if (st.speed===500) sBtn.textContent='3x';
 }
 
 function selTl(tl) {
@@ -2339,9 +2635,15 @@ function selTl(tl) {
   updateToolSelection();
   const c=COSTS[tl]||0, cTx=document.getElementById('costText'), sTx=document.getElementById('statusText');
   if (tl==='bulldoze') { sTx.textContent='click to demolish buildings'; cTx.textContent=''; }
-  else if (tl) { const dn=tl.startsWith('park')?'park':tl; sTx.textContent=`placing ${dn}`; cTx.textContent=c>0?`$${c.toLocaleString()}`:''; }
+  else if (tl) {
+    const dn=tl.startsWith('park')?'park':tl;
+    sTx.textContent=`placing ${dn}`;
+    cTx.textContent=c>0?`$${fmtCompact(c)}`:'';
+  }
   else { sTx.textContent='select a tool to start building'; cTx.textContent=''; }
 }
+
+// ===== Building Placement =====
 function canPlLg(x,y,w,h,zt) {
   for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
     const nx=x+dx, ny=y+dy; if (nx>=GR_SZ||ny>=GR_SZ) return false;
@@ -2442,30 +2744,10 @@ function getBuildingBoundsFromCell(x,y) {
   return {startX:startX, startY:startY, w:baseW, h:baseH};
 }
 
-function getBuildingPowerKey(x,y) {
-  if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return null;
-  const cell=st.grid[y][x];
-  if (!cell) return null;
-  if (cell.buildingId!=null) return `id:${cell.buildingId}`;
-  const {startX,startY}=getBuildingBoundsFromCell(x,y);
-  return `xy:${startX},${startY}`;
-}
-
 function isTopLeftCell(x,y) {
   if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return false;
   const cell=st.grid[y][x];
   if (!cell) return false;
-  if (cell.buildingId != null) {
-    if (x>0) {
-      const left=st.grid[y][x-1];
-      if (left && left.buildingId===cell.buildingId) return false;
-    }
-    if (y>0) {
-      const above=st.grid[y-1][x];
-      if (above && above.buildingId===cell.buildingId) return false;
-    }
-    return true;
-  }
   const w=cell.w||1, h=cell.h||1;
   if (w===1 && h===1) return true;
   if (x>0) {
@@ -2482,28 +2764,54 @@ function isTopLeftCell(x,y) {
 // Recompute buildingId metadata for all non-empty cells based on rectangular buildings
 function rebuildBuildingIdsFromGrid() {
   nextBuildingId = 1;
+  const visited = [];
 
   for (let y=0; y<GR_SZ; y++) {
+    const row = [];
     for (let x=0; x<GR_SZ; x++) {
       const cell = st.grid[y][x];
-      if (!cell) continue;
-      if (cell.type === 'empty') {
+      if (cell && cell.type === 'empty') {
         cell.buildingId = null;
-      } else {
+      } else if (cell) {
         cell.buildingId = undefined;
       }
+      row.push(false);
     }
+    visited.push(row);
   }
 
   for (let y=0; y<GR_SZ; y++) {
     for (let x=0; x<GR_SZ; x++) {
+      if (visited[y][x]) continue;
       const cell = st.grid[y][x];
-      if (!cell || cell.type === 'empty') continue;
-      if (!isTopLeftCell(x,y)) continue;
+      if (!cell || cell.type === 'empty') {
+        visited[y][x] = true;
+        continue;
+      }
 
       const w = cell.w || 1;
       const h = cell.h || 1;
       const buildingId = nextBuildingId++;
+
+      let isRectangular = true;
+      for (let dy=0; dy<h && isRectangular; dy++) {
+        for (let dx=0; dx<w; dx++) {
+          const nx = x+dx;
+          const ny = y+dy;
+          if (nx<0 || nx>=GR_SZ || ny<0 || ny>=GR_SZ) { isRectangular=false; break; }
+          const target = st.grid[ny][nx];
+          if (!target || target.type !== cell.type || (target.w||1)!==w || (target.h||1)!==h || visited[ny][nx]) {
+            isRectangular = false;
+            break;
+          }
+        }
+      }
+
+      if (!isRectangular) {
+        cell.buildingId = buildingId;
+        visited[y][x] = true;
+        continue;
+      }
 
       for (let dy=0; dy<h; dy++) {
         for (let dx=0; dx<w; dx++) {
@@ -2511,8 +2819,9 @@ function rebuildBuildingIdsFromGrid() {
           const ny = y+dy;
           if (nx<0 || nx>=GR_SZ || ny<0 || ny>=GR_SZ) continue;
           const target = st.grid[ny][nx];
-          if (!target || target.type==='empty') continue;
+          if (!target) continue;
           target.buildingId = buildingId;
+          visited[ny][nx] = true;
         }
       }
     }
@@ -2536,33 +2845,34 @@ function plcTl(x,y) {
         return;
       }
       
-      // Check if removing a power plant
-      const wasPowerPlant = c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind';
+        // Check if removing a power plant
+        const wasPowerPlant = c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind';
 
-      const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
-      const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
-      const isEmptyZone=isZone && (c.level===0 || c.abandoned);
-      const isSmallMulti=(w===2 && h===1) || (w===1 && h===2) || (w===2 && h===2);
+        const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
+        const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
+        const isMultiTileBuilding=(w>1 || h>1);
+        const isEmptyZoneCell=isZone && (c.level===0 || c.abandoned) && !isMultiTileBuilding;
 
-      // For empty zones: always bulldoze only the clicked cell
-      // For small multi-tile buildings (not empty zones): bulldoze the entire building
-      if (isEmptyZone) {
-        // Empty zones: bulldoze only the clicked cell
-        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-        normalizeEmptyCell(x,y);
-      } else if (isSmallMulti) {
-        // Small multi-tile buildings: bulldoze the entire building
-        for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
-          const nx=startX+dx, ny=startY+dy; if (nx<GR_SZ && ny<GR_SZ) {
-            st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-            normalizeEmptyCell(nx,ny);
+        // Single-tile empty zones (fresh or abandoned) can be cleared one cell at a time.
+        // Any merged/multi-tile structure should always clear its entire footprint to avoid "shifting" artifacts.
+        if (isEmptyZoneCell) {
+          st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+          normalizeEmptyCell(x,y);
+        } else if (isMultiTileBuilding) {
+          for (let dy=0; dy<h; dy++) {
+            for (let dx=0; dx<w; dx++) {
+              const nx=startX+dx, ny=startY+dy;
+              if (nx<GR_SZ && ny<GR_SZ) {
+                st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                normalizeEmptyCell(nx,ny);
+              }
+            }
           }
+        } else {
+          // All other buildings: only bulldoze the clicked cell
+          st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+          normalizeEmptyCell(x,y);
         }
-      } else {
-        // All other buildings: only bulldoze the clicked cell
-        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-        normalizeEmptyCell(x,y);
-      }
       
       // Recalculate power grid if a power plant was removed
       if (wasPowerPlant) {
@@ -2663,20 +2973,12 @@ function plcTl(x,y) {
   drGr(); updUI(); sv();
 }
 
-let isDragging = false, dragStart = null, lastPlaced = null, isScrolling = false, touchStartPos = null, lastTouchPos = null;
-let hoverPos = null; // Track hover position for placement preview
-
 function getCarSpeedMultiplier() {
   if (st.speed<=0) return 0;
   if (st.speed===500) return 3;
   if (st.speed===1500) return 2;
   return 1;
 }
-
-const CAR_BASE_SPEED = 1.0;
-const CAR_EDGE_OFFSET = CL_SZ/2 - 1;
-const CAR_SNAP_THRESHOLD = 0.5;
-const EMERGENCY_SPEED_MULTIPLIER = 1.2;
 
 function getCarSpeedPerFrame(car) {
   const baseSpeed = CAR_BASE_SPEED * getCarSpeedMultiplier();
@@ -2773,8 +3075,6 @@ function placeLine(x0, y0, x1, y1) {
     if (e2 < dx) { err += dx; y += sy; }
   }
 }
-
-let lastZoneBounds = null;
 
 function placeZone(x0, y0, x1, y1) {
   const minX = Math.min(x0, x1), maxX = Math.max(x0, x1);
@@ -2934,8 +3234,6 @@ cvs.addEventListener('click', e => {
   }
 });
 
-let activeSubmenu = null;
-
 const submenuItems = {
   park: [
     { tool: 'park', icon: '🌳', tooltip: 'park', shortcut: '1' },
@@ -2960,6 +3258,7 @@ const submenuItems = {
     { disaster: 'earthquake', icon: '🌍', tooltip: 'earthquake', shortcut: '3' }
   ]
 };
+
 function openSubmenu(button, submenuKey) {
   // Close any existing submenu
   closeSubmenu();
@@ -3434,6 +3733,125 @@ document.getElementById('speedToggle').addEventListener('click', () => {
   updUI();
 });
 
+const exportBtn = document.getElementById('exportBtn');
+if (exportBtn) {
+  exportBtn.addEventListener('click', () => {
+    try { plySnd('click'); } catch(e) {}
+    try {
+      const stateJson = JSON.stringify(st, null, 2);
+      const cityName = (st.cityName || 'city').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `${cityName}_${dateStr}.json`;
+      
+      let url;
+      let useBlob = true;
+      try {
+        const blob = new Blob([stateJson], { type: 'application/json' });
+        url = URL.createObjectURL(blob);
+      } catch (e) {
+        useBlob = false;
+        url = 'data:application/json;charset=utf-8,' + encodeURIComponent(stateJson);
+      }
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        if (useBlob && url) URL.revokeObjectURL(url);
+      }, 100);
+    } catch (e) {
+      console.error('Export failed:', e);
+      alert('Export failed: ' + (e.message || String(e)));
+    }
+  });
+}
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  plySnd('click');
+  document.getElementById('importFileInput').click();
+});
+
+document.getElementById('importFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const importedState = JSON.parse(event.target.result);
+      if (importedState.grid && importedState.grid.length === GR_SZ) {
+        st = importedState;
+        if (!st.rDemand) st.rDemand = 50;
+        if (!st.cDemand) st.cDemand = 50;
+        if (!st.iDemand) st.iDemand = 50;
+        if (!st.year) st.year = 1990;
+        if (!st.newsEvents) st.newsEvents = [];
+        if (!st.ticksSinceNews) st.ticksSinceNews = 0;
+        if (st.taxRate === undefined) st.taxRate = 10;
+        if (!st.terrain) st.terrain = genTerr('balanced');
+        if (!st.landValue) {
+          st.landValue = [];
+          for (let y = 0; y < GR_SZ; y++) {
+            const vr = [];
+            for (let x = 0; x < GR_SZ; x++) vr.push(50);
+            st.landValue.push(vr);
+          }
+        }
+        if (!st.crime) {
+          st.crime = [];
+          for (let y = 0; y < GR_SZ; y++) {
+            const cr = [];
+            for (let x = 0; x < GR_SZ; x++) cr.push(30);
+            st.crime.push(cr);
+          }
+        }
+        if (!st.fires) st.fires = [];
+        if (!st.employment) st.employment = 0;
+        if (!st.cars) st.cars = [];
+        if (!st.crimeEvents) st.crimeEvents = [];
+        st.stationDispatches = {};
+        if (st.cars && st.cars.length > 0) {
+          st.cars.forEach(car => {
+            if (car.stationKey) incrementStationDispatchCount(car.stationKey);
+          });
+        }
+        if (!st.zoom) st.zoom = 1;
+        if (st.disastersEnabled === undefined) st.disastersEnabled = true;
+        if (!st.powerGrid) initPowerGrid();
+        sv();
+        if (tkTmr) clearInterval(tkTmr);
+        if (st.speed > 0) {
+          TK_INT = st.speed;
+          tkTmr = setInterval(simTk, TK_INT);
+          updNwsTk();
+        } else {
+          updNwsTk();
+        }
+        drGr();
+        updUI();
+        document.getElementById('menu').classList.add('hidden');
+        document.getElementById('aiPanel').classList.add('hidden');
+        document.getElementById('infoPanel').classList.add('hidden');
+        currentInfoType = null;
+        setLandValueOverlay(false);
+        setCrimeOverlay(false);
+        setTimeout(centerCanvas, 100);
+      } else {
+        alert('Invalid city file format');
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Failed to import city file');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
 document.getElementById('newCityBtn').addEventListener('click', () => { 
   plySnd('click'); 
   document.getElementById('newCityName').value = '';
@@ -3441,11 +3859,21 @@ document.getElementById('newCityBtn').addEventListener('click', () => {
   document.getElementById('newGamePanel').classList.remove('hidden'); 
 });
 
+function generateRandomCityName() {
+  const prefixes = ['new', 'port', 'lake', 'river', 'green', 'sun', 'oak', 'maple', 'pine', 'cedar', 'spring', 'summer', 'winter', 'bay', 'hill', 'valley', 'mountain', 'forest', 'park', 'bridge', 'mill', 'brook', 'rock', 'stone', 'bright', 'fair', 'grand', 'royal', 'silver', 'golden'];
+  const suffixes = ['ville', 'burg', 'ton', 'field', 'wood', 'dale', 'brook', 'haven', 'port', 'shore', 'view', 'ridge', 'crest', 'peak', 'falls', 'springs', 'beach', 'bay', 'city', 'town', 'land', 'ford', 'bridge', 'mill', 'park', 'grove', 'heights', 'hills', 'valley', 'creek'];
+  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+  const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+  const cityName = prefix + suffix;
+  return cityName.charAt(0).toUpperCase() + cityName.slice(1);
+}
+
 document.getElementById('startGameBtn').addEventListener('click', () => {
   plySnd('click');
-  const nm=document.getElementById('newCityName').value||'new city', tr=document.getElementById('terrainType').value, df=document.getElementById('difficulty').value;
+  const inputValue = document.getElementById('newCityName').value.trim();
+  const nm = inputValue || generateRandomCityName(), tr=document.getElementById('terrainType').value, df=document.getElementById('difficulty').value;
   let mn=50000; if (df==='easy') mn=100000; else if (df==='hard') mn=20000;
-  aiReq=false; initGr(tr); st.money=mn; st.population=0; st.happiness=70; st.tickCount=0; st.cityName=nm; st.rDemand=50; st.cDemand=50; st.iDemand=50; st.year=1990; st.newsEvents=['Welcome to '+nm+'!']; st.ticksSinceNews=0; st.employment=0; st.taxRate=10;
+  aiReq=false; initGr(tr); st.money=mn; st.population=0; st.happiness=70; st.tickCount=0; st.cityName=nm; st.rDemand=50; st.cDemand=50; st.iDemand=50; st.year=1950; st.newsEvents=['Welcome to '+nm+'!']; st.ticksSinceNews=0; st.employment=0; st.taxRate=10;
   if (!st.zoom) st.zoom=1;
   drGr(); updUI(); updNwsTk(); sv();
   document.getElementById('newGamePanel').classList.add('hidden');
@@ -3487,6 +3915,7 @@ document.getElementById('closeInfoBtn').addEventListener('click', () => {
 function statItem(label, value, colorClass = '') {
   return `<div class="flex flex-col flex-shrink-0"><div class="text-xs text-neutral-400">${label}</div><div class="${colorClass}">${value}</div></div>`;
 }
+
 function getStatsContent(infoType) {
   const cnts = {};
   st.grid.flat().forEach(c => cnts[c.type] = (cnts[c.type] || 0) + 1);
@@ -3510,86 +3939,41 @@ function getStatsContent(infoType) {
         else if (c.level>=1) popL1+=Math.floor(bPR*sM*1);
       }
     }
-    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('total', st.population.toLocaleString())}${statItem('zones', cnts.residential||0)}${statItem('employment', `${st.employment}%`)}${statItem('L1', popL1.toLocaleString())}${statItem('L2', popL2.toLocaleString())}${statItem('L3', popL3.toLocaleString())}</div><div class="mt-3 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`;
+    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('total', fmtCompact(st.population))}${statItem('zones', cnts.residential||0)}${statItem('employment', `${st.employment}%`)}${statItem('L1', fmtCompact(popL1))}${statItem('L2', fmtCompact(popL2))}${statItem('L3', fmtCompact(popL3))}</div><div class="mt-3 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`;
   } else if (infoType === 'power') {
     title = 'Energy';
-    // Calculate power stats
-    let totalPowerGeneration = 0, totalPowerConsumption = 0;
-    let coalGen = 0, nuclearGen = 0, windGen = 0;
-    let coalCount = 0, nuclearCount = 0, windCount = 0;
-    let residentialConsumption = 0, commercialConsumption = 0, industrialConsumption = 0;
-    
-    // Track processed power structures so each building counts once (by buildingId when available)
-    const processedPowerPlants = new Set();
-    const processedPowerBuildings = new Set();
-    
-    for (let y=0; y<GR_SZ; y++) {
-      for (let x=0; x<GR_SZ; x++) {
-        const c = st.grid[y][x];
-        
-          if (c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind') {
-            const plantKey=getBuildingPowerKey(x,y);
-            if (plantKey && !processedPowerPlants.has(plantKey)) {
-              processedPowerPlants.add(plantKey);
-              if (c.type === 'coal') {
-                coalGen += POWER_GENERATION.coal;
-                coalCount++;
-                totalPowerGeneration += POWER_GENERATION.coal;
-              } else if (c.type === 'nuclear') {
-                nuclearGen += POWER_GENERATION.nuclear;
-                nuclearCount++;
-                totalPowerGeneration += POWER_GENERATION.nuclear;
-              } else if (c.type === 'wind') {
-                windGen += POWER_GENERATION.wind;
-                windCount++;
-                totalPowerGeneration += POWER_GENERATION.wind;
-              }
-            }
-          }
-        
-        if (c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') {
-            const buildingKey=getBuildingPowerKey(x,y);
-            if (!buildingKey || processedPowerBuildings.has(buildingKey)) continue;
-            processedPowerBuildings.add(buildingKey);
-          const level = c.level || 0;
-          const consumption = getPowerConsumption(c.type, level);
-          totalPowerConsumption += consumption;
-          if (c.type === 'residential') residentialConsumption += consumption;
-          else if (c.type === 'commercial') commercialConsumption += consumption;
-          else if (c.type === 'industrial') industrialConsumption += consumption;
-        }
-      }
-    }
-    const powerSurplus = totalPowerGeneration - totalPowerConsumption;
+    // Calculate power stats with detailed breakdown
+    const powerStats = calculatePowerStats(true);
+    const powerSurplus = powerStats.powerSurplus;
     const powerColor = powerSurplus >= 0 ? 'text-green-500' : 'text-red-500';
     const surplusDisplay = powerSurplus >= 0 ? `+${powerSurplus}` : powerSurplus.toString();
     
     content = `<div class="flex flex-wrap gap-6 py-2">
-      ${statItem('generation', `+${totalPowerGeneration}`, 'text-green-500')}
-      ${statItem('consumption', `-${totalPowerConsumption}`, 'text-red-500')}
+      ${statItem('generation', `+${powerStats.totalPowerGeneration}`, 'text-green-500')}
+      ${statItem('consumption', `-${powerStats.totalPowerConsumption}`, 'text-red-500')}
       ${statItem('surplus', surplusDisplay, powerColor)}
     </div>
-    <div class="mt-4 space-y-3">
+    <div class="mt-2 space-y-2">
       <div>
-        <div class="text-xs text-neutral-300 mb-1">Power Plants</div>
+        <div class="h-px w-full bg-neutral-700 mb-1"></div>
         <div class="flex flex-wrap gap-6 py-2">
-          ${coalCount > 0 ? statItem('Coal', `+${coalGen} (${coalCount})`, '') : ''}
-          ${nuclearCount > 0 ? statItem('Nuclear', `+${nuclearGen} (${nuclearCount})`, '') : ''}
-          ${windCount > 0 ? statItem('Wind', `+${windGen} (${windCount})`, '') : ''}
-          ${coalCount === 0 && nuclearCount === 0 && windCount === 0 ? '<div class="text-xs text-neutral-500">No power plants built</div>' : ''}
+          ${powerStats.coalCount > 0 ? statItem('Coal', `+${powerStats.coalGen} (${powerStats.coalCount})`, '') : ''}
+          ${powerStats.nuclearCount > 0 ? statItem('Nuclear', `+${powerStats.nuclearGen} (${powerStats.nuclearCount})`, '') : ''}
+          ${powerStats.windCount > 0 ? statItem('Wind', `+${powerStats.windGen} (${powerStats.windCount})`, '') : ''}
+          ${powerStats.coalCount === 0 && powerStats.nuclearCount === 0 && powerStats.windCount === 0 ? '<div class="text-xs text-neutral-500">No power plants built</div>' : ''}
         </div>
       </div>
       <div>
-        <div class="text-xs text-neutral-300 mb-1">Consumption Breakdown</div>
+        <div class="h-px w-full bg-neutral-700 mb-1"></div>
         <div class="flex flex-wrap gap-6 py-2">
-          ${residentialConsumption > 0 ? statItem('Residential', `-${residentialConsumption}`, 'text-green-500') : ''}
-          ${commercialConsumption > 0 ? statItem('Commercial', `-${commercialConsumption}`, 'text-blue-500') : ''}
-          ${industrialConsumption > 0 ? statItem('Industrial', `-${industrialConsumption}`, 'text-yellow-500') : ''}
-          ${totalPowerConsumption === 0 ? '<div class="text-xs text-neutral-500">No buildings consuming power</div>' : ''}
+          ${powerStats.residentialConsumption > 0 ? statItem('Residential', `-${powerStats.residentialConsumption}`, 'text-green-500') : ''}
+          ${powerStats.commercialConsumption > 0 ? statItem('Commercial', `-${powerStats.commercialConsumption}`, 'text-blue-500') : ''}
+          ${powerStats.industrialConsumption > 0 ? statItem('Industrial', `-${powerStats.industrialConsumption}`, 'text-yellow-500') : ''}
+          ${powerStats.totalPowerConsumption === 0 ? '<div class="text-xs text-neutral-500">No buildings consuming power</div>' : ''}
         </div>
       </div>
     </div>
-    <div class="mt-3 text-xs text-neutral-400">Power flows via roads from power plants. L2+L3 residential, all commercial and industrial require power.</div>`;
+    <div class="mt-2 text-xs text-neutral-400">Power flows via roads from power plants. L2+L3 residential, all commercial and industrial require power.</div>`;
   } else if (infoType === 'money') {
     title = 'Budget';
     // Calculate income breakdown (same logic as simTk)
@@ -3694,9 +4078,9 @@ function getStatsContent(infoType) {
     const netIncome = totalIncome - totalMaintenance;
     
     content = `<div class="flex flex-wrap gap-6 py-2">${statItem('balance', `$${st.money.toLocaleString()}`)}${statItem('income/mo', netIncome>=0?`+$${netIncome.toLocaleString()}`:`-$${Math.abs(netIncome).toLocaleString()}`, netIncome>=0?'text-green-500':'text-red-400')}${statItem('expenses/mo', `-$${totalMaintenance.toLocaleString()}`, 'text-red-400')}</div>
-      <div class="mt-4 space-y-3">
+      <div class="mt-2 space-y-2">
         <div>
-          <div class="text-xs text-neutral-300 mb-1">Income Sources</div>
+          <div class="h-px w-full bg-neutral-700 mb-1"></div>
           <div class="flex flex-wrap gap-6 py-2">
             ${statItem('Residential Tax', `$${Math.floor(residentialIncome*taxMultiplier).toLocaleString()}`, 'text-green-400')}
             ${statItem('Commercial', `$${Math.floor(commercialRevenue*taxMultiplier).toLocaleString()}`, 'text-blue-400')}
@@ -3705,7 +4089,7 @@ function getStatsContent(infoType) {
           </div>
         </div>
         <div>
-          <div class="text-xs text-neutral-300 mb-1">Expenses Breakdown</div>
+          <div class="h-px w-full bg-neutral-700 mb-1"></div>
           <div class="flex flex-wrap gap-6 py-2">
             ${statItem('Buildings', `-$${buildingMaintenance.toLocaleString()}`, 'text-red-400')}
             ${infrastructureCost > 0 ? statItem('Infrastructure', `-$${infrastructureCost.toLocaleString()}`, 'text-red-400') : ''}
@@ -3714,7 +4098,7 @@ function getStatsContent(infoType) {
             ${roadMaintenanceBonus > 0 ? statItem('Roads', `-$${roadMaintenanceBonus.toLocaleString()}`, 'text-red-400') : ''}
           </div>
         </div>
-        <div class="mt-3 pt-3 border-t border-neutral-700">
+        <div class="mt-2 pt-2 border-t border-neutral-700">
           <label class="text-xs text-neutral-400 block mb-2" id="taxRateLabel">Tax Rate: ${st.taxRate}%</label>
           <input type="range" id="taxRateSlider" min="0" max="20" value="${st.taxRate}" 
             class="w-full h-2 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-green-600"
@@ -3737,29 +4121,12 @@ function getStatsContent(infoType) {
   return { title, content };
 }
 
-document.getElementById('rciBtn').addEventListener('click', () => {
-  const { title, content } = getStatsContent('rci');
-  shwInfo(title, content, 'rci');
-});
-
-document.getElementById('popBtn').addEventListener('click', () => {
-  const { title, content } = getStatsContent('pop');
-  shwInfo(title, content, 'pop');
-});
-
-document.getElementById('moneyBtn').addEventListener('click', () => {
-  const { title, content } = getStatsContent('money');
-  shwInfo(title, content, 'money');
-});
-
-document.getElementById('happyBtn').addEventListener('click', () => {
-  const { title, content } = getStatsContent('happy');
-  shwInfo(title, content, 'happy');
-});
-
-document.getElementById('powerBtn').addEventListener('click', () => {
-  const { title, content } = getStatsContent('power');
-  shwInfo(title, content, 'power');
+['rciBtn','popBtn','moneyBtn','happyBtn','powerBtn'].forEach((btnId, idx) => {
+  const infoType = ['rci','pop','money','happy','power'][idx];
+  document.getElementById(btnId).addEventListener('click', () => {
+    const { title, content } = getStatsContent(infoType);
+    shwInfo(title, content, infoType);
+  });
 });
 
 function updateStatsPanel() {
@@ -3776,20 +4143,30 @@ function updateStatsPanel() {
 }
 
 function hasRdAcc(x,y) {
-  const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
-  for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
-    const cx=x+dx, cy=y+dy;
-    for (let ndy=-1; ndy<=1; ndy++) for (let ndx=-1; ndx<=1; ndx++) {
-      if (ndx===0 && ndy===0) continue;
-      const nx=cx+ndx, ny=cy+ndy;
-      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) if (st.grid[ny][nx].type==='road') return true;
+  const bounds = getBuildingBoundsFromCell(x,y);
+  const startX = bounds.startX ?? x;
+  const startY = bounds.startY ?? y;
+  const w = bounds.w || 1;
+  const h = bounds.h || 1;
+
+  for (let dy=0; dy<h; dy++) {
+    for (let dx=0; dx<w; dx++) {
+      const cx = startX + dx, cy = startY + dy;
+      for (let ndy=-1; ndy<=1; ndy++) {
+        for (let ndx=-1; ndx<=1; ndx++) {
+          if (ndx===0 && ndy===0) continue;
+          const nx=cx+ndx, ny=cy+ndy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            if (st.grid[ny][nx].type==='road') return true;
+          }
+        }
+      }
     }
   }
   return false;
 }
 
-function calculatePowerGrid() {
-  // Initialize power grid
+function initPowerGrid() {
   if (!st.powerGrid || st.powerGrid.length !== GR_SZ) {
     st.powerGrid = [];
     for (let y=0; y<GR_SZ; y++) {
@@ -3798,13 +4175,14 @@ function calculatePowerGrid() {
       st.powerGrid.push(row);
     }
   } else {
-    // Reset power grid
     for (let y=0; y<GR_SZ; y++) {
-      for (let x=0; x<GR_SZ; x++) {
-        st.powerGrid[y][x] = false;
-      }
+      for (let x=0; x<GR_SZ; x++) st.powerGrid[y][x] = false;
     }
   }
+}
+
+function calculatePowerGrid() {
+  initPowerGrid();
   
   // Find all power plants
   const powerPlants = [];
@@ -3817,34 +4195,29 @@ function calculatePowerGrid() {
     }
   }
   
-  const distanceGrid = [];
-  for (let y=0; y<GR_SZ; y++) {
-    const row = [];
-    for (let x=0; x<GR_SZ; x++) row.push(Infinity);
-    distanceGrid.push(row);
+  if (powerPlants.length === 0) {
+    allocatePowerToBuildings();
+    return;
   }
   
+  // BFS from each power plant along roads
   const visited = new Set();
   const queue = [];
-  const poweredRoads = [];
   
-  if (powerPlants.length > 0) {
-    // Start BFS from each power plant's adjacent road tiles
-    for (const plant of powerPlants) {
-      for (let dy=-1; dy<=1; dy++) {
-        for (let dx=-1; dx<=1; dx++) {
-          if (dx===0 && dy===0) continue;
-          const nx = plant.x + dx, ny = plant.y + dy;
-          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-            if (st.grid[ny][nx].type === 'road') {
-              const key = `${nx},${ny}`;
-              if (!visited.has(key)) {
-                visited.add(key);
-                queue.push({x: nx, y: ny, distance: 1});
-                poweredRoads.push({x: nx, y: ny});
-                st.powerGrid[ny][nx] = true;
-                distanceGrid[ny][nx] = 1;
-              }
+  // Start BFS from each power plant's adjacent road tiles
+  for (const plant of powerPlants) {
+    // Check adjacent tiles for roads
+    for (let dy=-1; dy<=1; dy++) {
+      for (let dx=-1; dx<=1; dx++) {
+        if (dx===0 && dy===0) continue;
+        const nx = plant.x + dx, ny = plant.y + dy;
+        if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+          if (st.grid[ny][nx].type === 'road') {
+            const key = `${nx},${ny}`;
+            if (!visited.has(key)) {
+              visited.add(key);
+              queue.push({x: nx, y: ny});
+              st.powerGrid[ny][nx] = true;
             }
           }
         }
@@ -3852,57 +4225,36 @@ function calculatePowerGrid() {
     }
   }
   
-  const directions = [[0,-1], [0,1], [-1,0], [1,0]];
+  // BFS along road network
   while (queue.length > 0) {
     const current = queue.shift();
+    
+    // Check all 4 directions (up, down, left, right)
+    const directions = [[0,-1], [0,1], [-1,0], [1,0]];
     for (const [dx, dy] of directions) {
       const nx = current.x + dx, ny = current.y + dy;
       if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
         const key = `${nx},${ny}`;
         if (!visited.has(key) && st.grid[ny][nx].type === 'road') {
           visited.add(key);
-          const nextDistance = current.distance + 1;
-          queue.push({x: nx, y: ny, distance: nextDistance});
-          poweredRoads.push({x: nx, y: ny});
+          queue.push({x: nx, y: ny});
           st.powerGrid[ny][nx] = true;
-          distanceGrid[ny][nx] = nextDistance;
         }
       }
     }
   }
   
-  for (const road of poweredRoads) {
-    // Mark tiles adjacent to powered roads (including diagonals)
-    for (let dy=-1; dy<=1; dy++) {
-      for (let dx=-1; dx<=1; dx++) {
-        const nx = road.x + dx, ny = road.y + dy;
-        if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-          if (!st.powerGrid[ny][nx]) {
-            st.powerGrid[ny][nx] = true;
-          }
-        }
-      }
-    }
-  }
-  
-  updateBuildingPowerAssignments(distanceGrid);
-}
-
-function getNearestPoweredRoadDistance(x,y,w,h,distanceGrid) {
-  let minDistance=Infinity;
-  for (let dy=0; dy<h; dy++) {
-    for (let dx=0; dx<w; dx++) {
-      const cx=x+dx, cy=y+dy;
-      for (let ndy=-1; ndy<=1; ndy++) {
-        for (let ndx=-1; ndx<=1; ndx++) {
-          if (ndx===0 && ndy===0) continue;
-          const nx=cx+ndx, ny=cy+ndy;
-          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-            const neighbor=st.grid[ny][nx];
-            if (neighbor && neighbor.type==='road') {
-              const distance=distanceGrid[ny][nx];
-              if (Number.isFinite(distance)) {
-                minDistance=Math.min(minDistance,distance);
+  // Mark all tiles adjacent to powered roads as powered
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      if (st.powerGrid[y][x]) {
+        // Check adjacent tiles (including diagonals)
+        for (let dy=-1; dy<=1; dy++) {
+          for (let dx=-1; dx<=1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+              if (!st.powerGrid[ny][nx]) {
+                st.powerGrid[ny][nx] = true;
               }
             }
           }
@@ -3910,85 +4262,24 @@ function getNearestPoweredRoadDistance(x,y,w,h,distanceGrid) {
       }
     }
   }
-  return minDistance;
+  
+  allocatePowerToBuildings();
 }
 
-function updateBuildingPowerAssignments(distanceGrid) {
-  const assignments={};
-  const processedPowerPlants=new Set();
-  const buildingCandidates=[];
-  const processedConsumerBuildings=new Set();
-  let totalPowerGeneration=0;
-  
-  for (let y=0; y<GR_SZ; y++) {
-    for (let x=0; x<GR_SZ; x++) {
-      const cell=st.grid[y][x];
-      if (!cell) continue;
-      
-      if ((cell.type==='coal'||cell.type==='nuclear'||cell.type==='wind')) {
-        if (!isTopLeftCell(x,y)) continue;
-        const plantKey=getBuildingPowerKey(x,y);
-        if (plantKey && !processedPowerPlants.has(plantKey)) {
-          processedPowerPlants.add(plantKey);
-          totalPowerGeneration+=POWER_GENERATION[cell.type]||0;
-        }
-        continue;
-      }
-      
-      if (!(cell.type==='residential'||cell.type==='commercial'||cell.type==='industrial')) continue;
-      const key=getBuildingPowerKey(x,y);
-      if (!key || processedConsumerBuildings.has(key)) continue;
-      processedConsumerBuildings.add(key);
+function hasPowerAccess(x,y) {
+  // Check if building at (x,y) has power access
+  // Power flows via roads, so check if any adjacent tile is powered
+  const bounds = getBuildingBoundsFromCell(x,y);
+  const startX = bounds.startX ?? x;
+  const startY = bounds.startY ?? y;
+  const w = bounds.w || 1;
+  const h = bounds.h || 1;
 
-      const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
-      const baseCell=st.grid[startY]?.[startX];
-      if (!baseCell) continue;
-      const consumption=getPowerConsumption(baseCell.type,baseCell.level||0);
-      if (consumption<=0) {
-        assignments[key]=true;
-        continue;
-      }
-      if (!hasPowerConnectivity(startX,startY)) {
-        assignments[key]=false;
-        continue;
-      }
-      const distance=getNearestPoweredRoadDistance(startX,startY,baseCell.w||1,baseCell.h||1,distanceGrid);
-      buildingCandidates.push({key,consumption,distance:Number.isFinite(distance)?distance:Infinity});
-    }
-  }
-  
-  buildingCandidates.sort((a,b)=>{
-    const aFinite=Number.isFinite(a.distance);
-    const bFinite=Number.isFinite(b.distance);
-    if (aFinite && bFinite && a.distance!==b.distance) return a.distance-b.distance;
-    if (aFinite!==bFinite) return aFinite?-1:1;
-    return a.consumption-b.consumption;
-  });
-  
-  let remainingPower=totalPowerGeneration;
-  for (const candidate of buildingCandidates) {
-    if (!Number.isFinite(candidate.distance)) {
-      assignments[candidate.key]=false;
-      continue;
-    }
-    if (candidate.consumption<=remainingPower) {
-      assignments[candidate.key]=true;
-      remainingPower-=candidate.consumption;
-    } else {
-      assignments[candidate.key]=false;
-    }
-  }
-  
-  st.buildingPowerAssignments=assignments;
-}
-
-function hasPowerConnectivity(x,y) {
   if (!st.powerGrid || st.powerGrid.length !== GR_SZ) return false;
-  const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
   
   for (let dy=0; dy<h; dy++) {
     for (let dx=0; dx<w; dx++) {
-      const cx=x+dx, cy=y+dy;
+      const cx=startX+dx, cy=startY+dy;
       // Check adjacent tiles (including diagonals)
       for (let ndy=-1; ndy<=1; ndy++) {
         for (let ndx=-1; ndx<=1; ndx++) {
@@ -4004,35 +4295,36 @@ function hasPowerConnectivity(x,y) {
   return false;
 }
 
-function hasPowerAccess(x,y) {
-  const cell=st.grid[y][x];
-  if (!cell) return false;
-  const needsPower=getPowerConsumption(cell.type,cell.level||0)>0;
-  if (!needsPower) return true;
-  if (!hasPowerConnectivity(x,y)) return false;
-  const assignments=st.buildingPowerAssignments;
-  if (assignments) {
-    const key=getBuildingPowerKey(x,y);
-    if (key && Object.prototype.hasOwnProperty.call(assignments,key)) {
-      return !!assignments[key];
-    }
-  }
-  return true;
+function buildingHasPower(x,y) {
+  if (!hasPowerAccess(x,y)) return false;
+  const key = getBuildingPowerKey(x,y);
+  if (!key) return false;
+  if (!st.powerShortageBuildings || typeof st.powerShortageBuildings !== 'object') return true;
+  return !st.powerShortageBuildings[key];
 }
 
 function hasSchoolCoverage(x,y) {
   // Check if building at (x,y) is within a school's bounds (8-tile radius)
-  const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
+  const bounds = getBuildingBoundsFromCell(x,y);
+  const startX = bounds.startX ?? x;
+  const startY = bounds.startY ?? y;
+  const w = bounds.w || 1;
+  const h = bounds.h || 1;
+
   // Check each cell of the building
-  for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
-    const cx=x+dx, cy=y+dy;
-    // Check for schools within 8-tile radius
-    for (let sdy=-8; sdy<=8; sdy++) for (let sdx=-8; sdx<=8; sdx++) {
-      const nx=cx+sdx, ny=cy+sdy;
-      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-        const d=Math.abs(sdx)+Math.abs(sdy);
-        if (d<=8 && st.grid[ny][nx].type==='school') {
-          return true;
+  for (let dy=0; dy<h; dy++) {
+    for (let dx=0; dx<w; dx++) {
+      const cx=startX+dx, cy=startY+dy;
+      // Check for schools within 8-tile radius
+      for (let sdy=-8; sdy<=8; sdy++) {
+        for (let sdx=-8; sdx<=8; sdx++) {
+          const nx=cx+sdx, ny=cy+sdy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            const d=Math.abs(sdx)+Math.abs(sdy);
+            if (d<=8 && st.grid[ny][nx].type==='school') {
+              return true;
+            }
+          }
         }
       }
     }
@@ -4040,6 +4332,7 @@ function hasSchoolCoverage(x,y) {
   return false;
 }
 
+// ===== Game Logic =====
 function calcLV(x,y) {
   let v=50; const tr=st.terrain[y][x];
   if (tr==='water') for (let dy=-2; dy<=2; dy++) for (let dx=-2; dx<=2; dx++) {
@@ -4129,7 +4422,7 @@ async function genNws() {
   cleanupNewsEvents(); // Clean old events and AI news before generating new one
   const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
   const ctx=`${st.cityName}, ${st.year}, pop ${st.population}, $${(st.money/1000).toFixed(0)}k, happiness ${st.happiness}, ${cnts.residential||0}R ${cnts.commercial||0}C ${cnts.industrial||0}I`;
-  const prm=`Generate ONE dramatic news headline (8 words max) for SimCity game. Context: ${ctx}. Topics: politics, pop culture, tech, disasters, economy, society. Include brief stat at end like (+200 pop) or (-$2k) or (+5 joy). Be punchy and dramatic. Return ONLY headline.`;
+  const prm=`Generate ONE quirky news headline (8 words max) for SimCity game. Context: ${ctx}. Topics: era-specific events (${st.year}s culture/tech), citizen stories, weird happenings, local color, achievements, community events. NO fires, earthquakes, crimes, or disasters. Include brief stat at end like (+200 pop) or (-$2k) or (+5 joy). Be creative and fun. Return ONLY headline.`;
   try {
     const r=await fetch('/api/applet-ai', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prm})});
     if (!r.ok) throw new Error('AI request failed');
@@ -4146,6 +4439,7 @@ async function genNws() {
     nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
   } catch(e) { console.error('News generation error:',e); } finally { aiReq=false; }
 }
+
 function tryMrgPark(x,y) {
   const c=st.grid[y][x]; if (!c||!c.type.startsWith('park')) return false;
   if (!isTopLeftCell(x,y)) return false;
@@ -4378,13 +4672,12 @@ function updFires() {
   st.fires=st.fires.filter(f => {
     f.age++;
     
-    // Count fire trucks at scene (from vehicles that have arrived)
+    // Count fire trucks at scene (from vehicles that have arrived and are within coverage range)
     const trucksAtScene = st.cars.filter(c => 
       c.mission && 
       c.mission.type === 'fire' && 
       c.mission.arrived && 
-      c.mission.targetX === f.x && 
-      c.mission.targetY === f.y
+      isWithinCoverageRange(c.mission.targetX, c.mission.targetY, f.x, f.y)
     ).length;
     
     // Fires REQUIRE fire trucks to be extinguished - they won't go out on their own
@@ -4462,22 +4755,21 @@ function startFire() {
   if (blds.length>0) {
     const b=blds[Math.floor(Math.random()*blds.length)]; 
     st.fires.push({x:b.x,y:b.y,age:0,fireTrucksAtScene:0});
+    plySnd('fire');
     
     // Dispatch fire truck from nearest fire station
     const dispatched = dispatchEmergencyVehicle('fire', b.x, b.y, 'fire');
-    if (dispatched) {
-      st.newsEvents.push(`🔥 Fire breaks out in ${st.cityName}! Fire truck dispatched. (-$5k)`);
-    } else {
-      st.newsEvents.push(`🔥 Fire breaks out in ${st.cityName}! No fire station nearby! (-$5k)`);
-    }
-    st.money-=5000;
+    const cost = 5000;
+    st.newsEvents.push(`🔥 Fire! (-$${fmtCompact(cost)})`);
+    st.money-=cost;
     nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
   }
 }
 
 function startQuake() {
+  plySnd('earthquake');
   const gr=document.getElementById('grid'); gr.classList.add('earthquake');
-  setTimeout(() => gr.classList.remove('earthquake'),500);
+  setTimeout(() => gr.classList.remove('earthquake'),1500);
   const blds=[]; 
   const processedBuildings=new Set(); // Track buildings we've already added
   
@@ -4558,7 +4850,9 @@ function startQuake() {
       }
     }
   }
-  st.newsEvents.push(`🌎 Earthquake hits ${st.cityName}! ${dmg} buildings damaged (-$10k)`); st.money-=10000;
+  const cost = 10000;
+  st.newsEvents.push(`🌎 Earthquake! ${dmg} buildings damaged (-$${fmtCompact(cost)})`);
+  st.money-=cost;
   nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
 }
 
@@ -4566,13 +4860,12 @@ function updCrimeEvents() {
   st.crimeEvents=st.crimeEvents.filter(evt => {
     evt.age++;
     
-    // Count police cars at scene (from vehicles that have arrived)
+    // Count police cars at scene (from vehicles that have arrived and are within coverage range)
     const policeAtScene = st.cars.filter(c => 
       c.mission && 
       c.mission.type === 'crime' && 
       c.mission.arrived && 
-      c.mission.targetX === evt.x && 
-      c.mission.targetY === evt.y
+      isWithinCoverageRange(c.mission.targetX, c.mission.targetY, evt.x, evt.y)
     ).length;
     
     // Crimes REQUIRE police cars to resolve - they won't resolve on their own
@@ -4619,22 +4912,23 @@ function startCrimeEvent() {
     const crimeTypes=['robbery','break-in','vandalism'];
     const crimeType=crimeTypes[Math.floor(Math.random()*crimeTypes.length)];
     st.crimeEvents.push({x:b.x,y:b.y,type:crimeType,age:0,policeCarsAtScene:0});
+    plySnd('crime');
     
     // Dispatch police car from nearest police station
     const dispatched = dispatchEmergencyVehicle('police', b.x, b.y, 'crime');
     const cost=Math.floor(Math.random()*3000)+2000;
     st.money-=cost;
-    const dispatchedMsg = dispatched ? ' Police car dispatched.' : ' No police station nearby!';
-    const msg=crimeType==='robbery'?`🚨 Robbery reported in ${st.cityName}!${dispatchedMsg} (-$${(cost/1000).toFixed(0)}k)`:
-           crimeType==='break-in'?`🚨 Break-in reported in ${st.cityName}!${dispatchedMsg} (-$${(cost/1000).toFixed(0)}k)`:
-           `🚨 Vandalism reported in ${st.cityName}!${dispatchedMsg} (-$${(cost/1000).toFixed(0)}k)`;
+    const msg=crimeType==='robbery'?`🚨 Robbery! (-$${fmtCompact(cost)})`:
+           crimeType==='break-in'?`🚨 Break-in! (-$${fmtCompact(cost)})`:
+           `🚨 Vandalism! (-$${fmtCompact(cost)})`;
     st.newsEvents.push(msg);
     nwsQ.push(st.newsEvents[st.newsEvents.length-1]); if (!trans && st.speed>0) shwNxtNws();
   }
 }
+
 function simTk() {
   st.tickCount++; st.ticksSinceNews++;
-  if (st.tickCount % TICKS_PER_YEAR === 0) {
+  if (st.tickCount%12===0) {
     st.year++;
     // Clean up old event messages and AI news every year
     cleanupNewsEvents();
@@ -4717,16 +5011,18 @@ function simTk() {
           }
         }
       }
-      
-      const lv=st.landValue[y][x], hr=hasRdAcc(x,y), mv=c.type==='industrial'?10:20;
-      const level = c.level || 0;
-      
+        
+        const lv=st.landValue[y][x], hr=hasRdAcc(x,y), mv=c.type==='industrial'?10:20;
+        const level = c.level || 0;
+        
         // Check power requirements
-        const needsPower = getPowerConsumption(c.type, level) > 0;
-      
-      const hasPower = hasPowerAccess(x, y);
-      
-      // Track ticks without road access
+        let needsPower = false;
+        if (c.type === 'residential' && (level === 2 || level === 3)) needsPower = true;
+        else if (c.type === 'commercial' || c.type === 'industrial') needsPower = true;
+        
+        const hasPower = buildingHasPower(x, y);
+        
+        // Track ticks without road access
       if (!hr) {
         c.ticksNoRoad = (c.ticksNoRoad || 0) + 1;
       } else {
@@ -5124,6 +5420,7 @@ function simTk() {
     updFires(); updCrimeEvents(); drGr(); updUI(); updateStatsPanel(); sv();
 }
 
+// ===== Audio =====
 const aC=new (window.AudioContext||window.webkitAudioContext)();
 function plySnd(t) {
   const n=aC.currentTime;
@@ -5131,6 +5428,27 @@ function plySnd(t) {
   else if (t==='bulldoze') { const o=aC.createOscillator(), g=aC.createGain(); o.type='sawtooth'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(200,n); g.gain.setValueAtTime(0.15,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.15); o.start(n); o.stop(n+0.15); }
   else if (t==='click') { const o=aC.createOscillator(), g=aC.createGain(); o.type='sine'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(600,n); g.gain.setValueAtTime(0.08,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.05); o.start(n); o.stop(n+0.05); }
   else if (t==='error') { const o=aC.createOscillator(), g=aC.createGain(); o.type='square'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(300,n); o.frequency.setValueAtTime(200,n+0.1); g.gain.setValueAtTime(0.1,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.2); o.start(n); o.stop(n+0.2); }
+  else if (t==='fire') { const o=aC.createOscillator(), g=aC.createGain(); o.type='sine'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(700,n); o.frequency.setValueAtTime(500,n+0.15); o.frequency.setValueAtTime(700,n+0.3); o.frequency.setValueAtTime(500,n+0.45); g.gain.setValueAtTime(0.06,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.6); o.start(n); o.stop(n+0.6); }
+  else if (t==='crime') { const o=aC.createOscillator(), g=aC.createGain(); o.type='sine'; o.connect(g); g.connect(aC.destination); o.frequency.setValueAtTime(800,n); o.frequency.setValueAtTime(600,n+0.12); o.frequency.setValueAtTime(800,n+0.24); o.frequency.setValueAtTime(600,n+0.36); o.frequency.setValueAtTime(800,n+0.48); g.gain.setValueAtTime(0.06,n); g.gain.exponentialRampToValueAtTime(0.001,n+0.6); o.start(n); o.stop(n+0.6); }
+  else if (t==='earthquake') {
+    // Low rumble
+    const o1=aC.createOscillator(), g1=aC.createGain();
+    o1.type='sine'; o1.connect(g1); g1.connect(aC.destination);
+    o1.frequency.setValueAtTime(80,n);
+    o1.frequency.exponentialRampToValueAtTime(30,n+1.5);
+    g1.gain.setValueAtTime(0.25,n);
+    g1.gain.exponentialRampToValueAtTime(0.001,n+1.5);
+    o1.start(n); o1.stop(n+1.5);
+    
+    // Mid rumble for more impact
+    const o2=aC.createOscillator(), g2=aC.createGain();
+    o2.type='sine'; o2.connect(g2); g2.connect(aC.destination);
+    o2.frequency.setValueAtTime(150,n);
+    o2.frequency.exponentialRampToValueAtTime(60,n+1.5);
+    g2.gain.setValueAtTime(0.15,n);
+    g2.gain.exponentialRampToValueAtTime(0.001,n+1.5);
+    o2.start(n); o2.stop(n+1.5);
+  }
 }
 
 if (!ld()) { initGr('balanced'); st.newsEvents=['Welcome to '+st.cityName+'!']; }
@@ -5156,7 +5474,6 @@ window.addEventListener('load', () => {
 });
 
 // Re-center canvas when window is resized
-let resizeTimeout;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(centerCanvas, 100);
@@ -5258,3 +5575,4 @@ function hideBuildingInfo() {
 </script>
 </body>
 </html>
+
