@@ -2961,8 +2961,9 @@ function statItem(label, value, colorClass = '') {
 }
 
 function getStatsContent(infoType) {
-  const cnts = {}; 
+  const cnts = {};
   st.grid.flat().forEach(c => cnts[c.type] = (cnts[c.type] || 0) + 1);
+  const getCount = type => cnts[type] || 0;
   
   let content = '';
   let title = '';
@@ -2986,7 +2987,17 @@ function getStatsContent(infoType) {
   } else if (infoType === 'money') {
     title = 'Budget';
     const inc = Math.floor(st.population * 2);
-    const mnt = Math.floor(cnts.road * 1 + (cnts.residential || 0) * 2 + (cnts.commercial || 0) * 3 + (cnts.industrial || 0) * 5 + (cnts.park || 0) * 2 + (cnts.police || 0) * 10 + (cnts.fire || 0) * 10 + (cnts.school || 0) * 15 + (cnts.hospital || 0) * 20);
+    const mnt = Math.floor(
+      getCount('road') * 1 +
+      getCount('residential') * 2 +
+      getCount('commercial') * 3 +
+      getCount('industrial') * 5 +
+      getCount('park') * 2 +
+      getCount('police') * 10 +
+      getCount('fire') * 10 +
+      getCount('school') * 15 +
+      getCount('hospital') * 20
+    );
     content = `<div class="flex flex-wrap gap-6 py-2">${statItem('balance', `$${st.money.toLocaleString()}`)}${statItem('income', `+$${inc}`, 'text-green-500')}${statItem('expenses', `-$${mnt}`, 'text-red-400')}</div><div class="mt-3 text-xs text-neutral-400">Income from population taxes</div>`;
   } else if (infoType === 'happy') {
     title = 'Happiness';
