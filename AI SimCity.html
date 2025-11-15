@@ -3392,6 +3392,32 @@ function tryMrg(x,y) {
   return false;
 }
 
+function applyFireDamageToBuilding(x,y,trucksAtScene) {
+  if (!st.grid[y] || !st.grid[y][x]) return false;
+  const cell=st.grid[y][x];
+  if (!cell) return false;
+  const validTypes=['residential','commercial','industrial'];
+  if (!validTypes.includes(cell.type) || cell.type==='empty' || cell.type==='road') return false;
+  const bounds=getBuildingBoundsFromCell(x,y);
+  const w=bounds.w||1, h=bounds.h||1;
+  const baseLevel=typeof cell.level==='number' ? cell.level : 1;
+  const damageAmount=trucksAtScene>1 ? 0 : 1;
+  const newLevel=baseLevel>0 ? Math.max(1, baseLevel - damageAmount) : 0;
+  
+  for (let dy=0; dy<h; dy++) {
+    for (let dx=0; dx<w; dx++) {
+      const nx=bounds.startX+dx, ny=bounds.startY+dy;
+      if (nx<0 || nx>=GR_SZ || ny<0 || ny>=GR_SZ) continue;
+      const target=st.grid[ny][nx];
+      if (!target || target.type!==cell.type) continue;
+      target.level=newLevel;
+      target.abandoned=true;
+      target.age=Math.max(0,(target.age||0)-5);
+    }
+  }
+  return true;
+}
+
 function updFires() {
   st.fires=st.fires.filter(f => {
     f.age++;
@@ -3440,16 +3466,19 @@ function updFires() {
     if (f.age>maxAge) { 
       sendEmergencyVehiclesHome('fire', f.x, f.y);
       
-      const cell=st.grid[f.y][f.x];
-      if (cell && cell.type!=='empty') {
-        const bounds=getBuildingBoundsFromCell(f.x,f.y);
-        const w=bounds.w||1, h=bounds.h||1;
-        for (let dy=0; dy<h; dy++) {
-          for (let dx=0; dx<w; dx++) {
-            const nx=bounds.startX+dx, ny=bounds.startY+dy;
-            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-              st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-              normalizeEmptyCell(nx,ny); // Ensure it's 1x1
+      const damaged=applyFireDamageToBuilding(f.x,f.y,trucksAtScene);
+      if (!damaged) {
+        const cell=st.grid[f.y][f.x];
+        if (cell && cell.type!=='empty') {
+          const bounds=getBuildingBoundsFromCell(f.x,f.y);
+          const w=bounds.w||1, h=bounds.h||1;
+          for (let dy=0; dy<h; dy++) {
+            for (let dx=0; dx<w; dx++) {
+              const nx=bounds.startX+dx, ny=bounds.startY+dy;
+              if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                normalizeEmptyCell(nx,ny); // Ensure it's 1x1
+              }
             }
           }
         }
