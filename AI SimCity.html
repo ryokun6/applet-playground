@@ -221,8 +221,8 @@
           <div class="h-px w-full bg-neutral-700"></div>
           <div class="h-1"></div>
         </div>
-        <button data-tool="bulldoze" data-tooltip="demolish" data-shortcut="D" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">💥</button>
         <button data-submenu="disaster" data-tooltip="disasters" data-shortcut="W" class="disaster-btn tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center" style="display: none;">⚠️</button>
+        <button data-tool="bulldoze" data-tooltip="demolish" data-shortcut="D" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">💥</button>
       </div>
     </div>
   </div>
@@ -317,7 +317,7 @@ const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
 const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
 const STATION_MAX_ACTIVE = 2;
 
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{}};
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10};
 let nextBuildingId = 1;
 let showLandValueOverlay = false;
 let showCrimeOverlay = false;
@@ -412,6 +412,7 @@ function ld() {
         st=p;
         if (!st.rDemand) st.rDemand=50; if (!st.cDemand) st.cDemand=50; if (!st.iDemand) st.iDemand=50;
         if (!st.year) st.year=1990; if (!st.newsEvents) st.newsEvents=[]; if (!st.ticksSinceNews) st.ticksSinceNews=0;
+        if (st.taxRate===undefined) st.taxRate=10; // Default 10% tax rate
         if (!st.terrain) st.terrain=genTerr('balanced'); if (!st.landValue) { st.landValue=[]; for (let y=0; y<GR_SZ; y++) { const vr=[]; for (let x=0; x<GR_SZ; x++) vr.push(50); st.landValue.push(vr); } }
         if (!st.crime) { st.crime=[]; for (let y=0; y<GR_SZ; y++) { const cr=[]; for (let x=0; x<GR_SZ; x++) cr.push(30); st.crime.push(cr); } }
           if (!st.fires) st.fires=[]; if (!st.employment) st.employment=0; if (!st.cars) st.cars=[]; if (!st.crimeEvents) st.crimeEvents=[];
@@ -1922,7 +1923,11 @@ function updUI() {
   document.getElementById('population').textContent=st.population.toLocaleString();
   document.getElementById('money').textContent=`${(st.money/1000).toFixed(0)}k`;
   document.getElementById('happiness').textContent=st.happiness;
-  if (!edtNm) document.getElementById('yearDisplay').textContent=st.year;
+  if (!edtNm) {
+    const month = (st.tickCount % 12) + 1;
+    const monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    document.getElementById('yearDisplay').textContent=`${monthNames[month-1]} ${st.year}`;
+  }
   const mEl=document.getElementById('money');
   if (st.money<0) { mEl.classList.remove('text-white'); mEl.classList.add('text-red-400'); }
   else { mEl.classList.remove('text-red-400'); mEl.classList.add('text-white'); }
@@ -2917,7 +2922,7 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
   plySnd('click');
   const nm=document.getElementById('newCityName').value||'new city', tr=document.getElementById('terrainType').value, df=document.getElementById('difficulty').value;
   let mn=50000; if (df==='easy') mn=100000; else if (df==='hard') mn=20000;
-  aiReq=false; initGr(tr); st.money=mn; st.population=0; st.happiness=70; st.tickCount=0; st.cityName=nm; st.rDemand=50; st.cDemand=50; st.iDemand=50; st.year=1990; st.newsEvents=['Welcome to '+nm+'!']; st.ticksSinceNews=0; st.employment=0;
+  aiReq=false; initGr(tr); st.money=mn; st.population=0; st.happiness=70; st.tickCount=0; st.cityName=nm; st.rDemand=50; st.cDemand=50; st.iDemand=50; st.year=1990; st.newsEvents=['Welcome to '+nm+'!']; st.ticksSinceNews=0; st.employment=0; st.taxRate=10;
   if (!st.zoom) st.zoom=1;
   drGr(); updUI(); updNwsTk(); sv();
   document.getElementById('newGamePanel').classList.add('hidden');
@@ -2961,8 +2966,9 @@ function statItem(label, value, colorClass = '') {
 }
 
 function getStatsContent(infoType) {
-  const cnts = {}; 
+  const cnts = {};
   st.grid.flat().forEach(c => cnts[c.type] = (cnts[c.type] || 0) + 1);
+  const getCount = type => cnts[type] || 0;
   
   let content = '';
   let title = '';
@@ -2985,9 +2991,136 @@ function getStatsContent(infoType) {
     content = `<div class="flex flex-wrap gap-6 py-2">${statItem('total', st.population.toLocaleString())}${statItem('zones', cnts.residential||0)}${statItem('employment', `${st.employment}%`)}${statItem('L1', popL1.toLocaleString())}${statItem('L2', popL2.toLocaleString())}${statItem('L3', popL3.toLocaleString())}</div><div class="mt-3 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`;
   } else if (infoType === 'money') {
     title = 'Budget';
-    const inc = Math.floor(st.population * 2);
-    const mnt = Math.floor(cnts.road * 1 + (cnts.residential || 0) * 2 + (cnts.commercial || 0) * 3 + (cnts.industrial || 0) * 5 + (cnts.park || 0) * 2 + (cnts.police || 0) * 10 + (cnts.fire || 0) * 10 + (cnts.school || 0) * 15 + (cnts.hospital || 0) * 20);
-    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('balance', `$${st.money.toLocaleString()}`)}${statItem('income', `+$${inc}`, 'text-green-500')}${statItem('expenses', `-$${mnt}`, 'text-red-400')}</div><div class="mt-3 text-xs text-neutral-400">Income from population taxes</div>`;
+    // Calculate income breakdown (same logic as simTk)
+    let residentialIncome = 0, commercialRevenue = 0, industrialRevenue = 0, tourismIncome = 0;
+    for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+      const c=st.grid[y][x];
+      if (c.type==='residential' && hasRdAcc(x,y) && !c.abandoned) {
+        const lv=st.landValue[y][x]||50;
+        const level=c.level||0;
+        const size=(c.w||1)*(c.h||1);
+        const baseTax=2.5; // Increased to balance expenses
+        const levelMultiplier=level===3?2.5:(level===2?1.8:(level===1?1.3:0.5));
+        const landValueMultiplier=1+(lv-50)/100;
+        const popPerCell=Math.floor(10*size*levelMultiplier);
+        residentialIncome+=Math.floor(popPerCell*baseTax*levelMultiplier*landValueMultiplier);
+      } else if (c.type==='commercial' && hasRdAcc(x,y) && !c.abandoned) {
+        const lv=st.landValue[y][x]||50;
+        const level=c.level||0;
+        const size=(c.w||1)*(c.h||1);
+        const baseRevenue=18; // Increased to balance expenses
+        const levelMultiplier=level===3?3.0:(level===2?2.0:(level===1?1.5:0.8));
+        const landValueMultiplier=1+(lv-50)/80;
+        const employmentMultiplier=0.5+(st.employment/200);
+        const populationMultiplier=Math.min(2.0,1+(st.population/5000));
+        commercialRevenue+=Math.floor(baseRevenue*size*levelMultiplier*landValueMultiplier*employmentMultiplier*populationMultiplier);
+      } else if (c.type==='industrial' && hasRdAcc(x,y) && !c.abandoned) {
+        const lv=st.landValue[y][x]||50;
+        const level=c.level||0;
+        const size=(c.w||1)*(c.h||1);
+        const baseRevenue=24; // Increased to balance expenses
+        const levelMultiplier=level===3?2.8:(level===2?2.0:(level===1?1.4:0.7));
+        const landValueMultiplier=1+(lv-50)/100;
+        const employmentMultiplier=0.4+(st.employment/167);
+        industrialRevenue+=Math.floor(baseRevenue*size*levelMultiplier*landValueMultiplier*employmentMultiplier);
+      } else if (c.type && c.type.startsWith('park')) {
+        const size=(c.w||1)*(c.h||1);
+        const baseTourism=6; // Increased to balance expenses
+        const populationMultiplier=Math.min(3.0,1+(st.population/3000));
+        const happinessMultiplier=0.7+(st.happiness/143);
+        tourismIncome+=Math.floor(baseTourism*size*populationMultiplier*happinessMultiplier);
+      }
+    }
+    const taxMultiplier=0.5+(st.taxRate/20);
+    const totalIncome=Math.floor((residentialIncome+commercialRevenue+industrialRevenue+tourismIncome)*taxMultiplier);
+    
+    // Calculate maintenance (same logic as simTk) - UPDATED
+    let buildingMaintenance = 0, infrastructureCost = 0, serviceCosts = 0, crimeExpenses = 0, roadMaintenanceBonus = 0;
+    
+    // Base building maintenance
+    for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+      const c=st.grid[y][x];
+      if (c.type==='road') buildingMaintenance+=2;
+      else if (c.type==='residential' && !c.abandoned) {
+        const level=c.level||0;
+        const levelMultiplier=level===3?2.5:(level===2?1.8:(level===1?1.3:0.5));
+        buildingMaintenance+=Math.floor(5*levelMultiplier);
+      }
+      else if (c.type==='commercial' && !c.abandoned) {
+        const level=c.level||0;
+        const levelMultiplier=level===3?2.2:(level===2?1.6:(level===1?1.2:0.6));
+        buildingMaintenance+=Math.floor(8*levelMultiplier);
+      }
+      else if (c.type==='industrial' && !c.abandoned) {
+        const level=c.level||0;
+        const levelMultiplier=level===3?2.0:(level===2?1.5:(level===1?1.1:0.5));
+        buildingMaintenance+=Math.floor(12*levelMultiplier);
+      }
+      else if (c.type && c.type.startsWith('park')) buildingMaintenance+=4;
+      else if (c.type==='police') buildingMaintenance+=25;
+      else if (c.type==='fire') buildingMaintenance+=25;
+      else if (c.type==='school') buildingMaintenance+=40;
+      else if (c.type==='hospital') buildingMaintenance+=60;
+    }
+    
+    // Population-based costs
+    if (st.population > 0) {
+      infrastructureCost = Math.floor(st.population * 0.5);
+      
+      // Service operation costs
+      let avgCrime = 0;
+      for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+        avgCrime += st.crime[y][x] || 30;
+      }
+      avgCrime = avgCrime / (GR_SZ * GR_SZ);
+      const policeOpCost = Math.floor(st.population * 0.3 * (1 + avgCrime/100));
+      const fireOpCost = Math.floor(st.population * 0.2);
+      const educationCost = Math.floor(st.population * 0.4);
+      const healthCost = Math.floor(st.population * 0.35 * (1 + (100-st.happiness)/200));
+      serviceCosts = policeOpCost + fireOpCost + educationCost + healthCost;
+      
+      // Crime expenses
+      if (avgCrime > 40) {
+        crimeExpenses = Math.floor(st.population * (avgCrime - 40) / 20);
+      }
+    }
+    
+    // Road maintenance bonus
+    const rdC = getCount('road');
+    roadMaintenanceBonus = Math.floor(rdC * 0.1);
+    
+    const totalMaintenance = buildingMaintenance + infrastructureCost + serviceCosts + crimeExpenses + roadMaintenanceBonus;
+    const netIncome = totalIncome - totalMaintenance;
+    
+    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('balance', `$${st.money.toLocaleString()}`)}${statItem('income/mo', netIncome>=0?`+$${netIncome.toLocaleString()}`:`-$${Math.abs(netIncome).toLocaleString()}`, netIncome>=0?'text-green-500':'text-red-400')}${statItem('expenses/mo', `-$${totalMaintenance.toLocaleString()}`, 'text-red-400')}</div>
+      <div class="mt-4 space-y-3">
+        <div>
+          <div class="text-xs text-green-400 mb-1">Income Sources</div>
+          <div class="flex flex-wrap gap-6 py-2">
+            ${statItem('Residential Tax', `$${Math.floor(residentialIncome*taxMultiplier).toLocaleString()}`, 'text-green-400')}
+            ${statItem('Commercial', `$${Math.floor(commercialRevenue*taxMultiplier).toLocaleString()}`, 'text-blue-400')}
+            ${statItem('Industrial', `$${Math.floor(industrialRevenue*taxMultiplier).toLocaleString()}`, 'text-yellow-400')}
+            ${statItem('Tourism', `$${Math.floor(tourismIncome*taxMultiplier).toLocaleString()}`, 'text-emerald-400')}
+          </div>
+        </div>
+        <div>
+          <div class="text-xs text-red-400 mb-1">Expenses Breakdown</div>
+          <div class="flex flex-wrap gap-6 py-2">
+            ${statItem('Buildings', `-$${buildingMaintenance.toLocaleString()}`, 'text-red-400')}
+            ${infrastructureCost > 0 ? statItem('Infrastructure', `-$${infrastructureCost.toLocaleString()}`, 'text-red-400') : ''}
+            ${serviceCosts > 0 ? statItem('Services', `-$${serviceCosts.toLocaleString()}`, 'text-red-400') : ''}
+            ${crimeExpenses > 0 ? statItem('Crime', `-$${crimeExpenses.toLocaleString()}`, 'text-red-400') : ''}
+            ${roadMaintenanceBonus > 0 ? statItem('Roads', `-$${roadMaintenanceBonus.toLocaleString()}`, 'text-red-400') : ''}
+          </div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-neutral-700">
+          <label class="text-xs text-neutral-400 block mb-2" id="taxRateLabel">Tax Rate: ${st.taxRate}%</label>
+          <input type="range" id="taxRateSlider" min="0" max="20" value="${st.taxRate}" 
+            class="w-full h-2 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-green-600"
+            oninput="st.taxRate=parseInt(this.value); const lbl=document.getElementById('taxRateLabel'); if(lbl) lbl.textContent='Tax Rate: '+st.taxRate+'%'; updateStatsPanel(); sv();">
+          <div class="text-xs text-neutral-500 mt-1">Lower taxes boost happiness, higher taxes boost income</div>
+        </div>
+      </div>`;
   } else if (infoType === 'happy') {
     title = 'Happiness';
     let avgCrime = 0;
@@ -3142,8 +3275,19 @@ function calcDmd(rC,cC,iC,p) {
   return {rDemand:rD,cDemand:cD,iDemand:iD};
 }
 
+function cleanupNewsEvents() {
+  // Remove all event messages (fire, robbery, earthquake, etc.) - they have emojis
+  st.newsEvents = st.newsEvents.filter(ev => !ev.includes('🔥') && !ev.includes('🚨') && !ev.includes('🌎'));
+  
+  // Keep only the 3 most recent AI news items
+  const aiNews = st.newsEvents.filter(ev => !ev.includes('Welcome to'));
+  const welcomeMsgs = st.newsEvents.filter(ev => ev.includes('Welcome to'));
+  st.newsEvents = [...welcomeMsgs, ...aiNews.slice(-3)];
+}
+
 async function genNws() {
   if (aiReq) return; aiReq=true;
+  cleanupNewsEvents(); // Clean old events and AI news before generating new one
   const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
   const ctx=`${st.cityName}, ${st.year}, pop ${st.population}, $${(st.money/1000).toFixed(0)}k, happiness ${st.happiness}, ${cnts.residential||0}R ${cnts.commercial||0}C ${cnts.industrial||0}I`;
   const prm=`Generate ONE dramatic news headline (8 words max) for SimCity game. Context: ${ctx}. Topics: politics, pop culture, tech, disasters, economy, society. Include brief stat at end like (+200 pop) or (-$2k) or (+5 joy). Be punchy and dramatic. Return ONLY headline.`;
@@ -3159,7 +3303,7 @@ async function genNws() {
       else if (ch.includes('$')||ch.includes('k')) { const vl=parseInt(ch.match(/-?\d+/)?.[0]||0), mt=ch.includes('k')?1000:1; st.money+=vl*mt; }
       else if (ch.includes('joy')||ch.includes('happiness')) { const vl=parseInt(ch.match(/-?\d+/)?.[0]||0); st.happiness=Math.max(0,Math.min(100,st.happiness+vl)); }
     }
-    st.newsEvents.push(ev); if (st.newsEvents.length>10) st.newsEvents.shift();
+    st.newsEvents.push(ev);
     nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
   } catch(e) { console.error('News generation error:',e); } finally { aiReq=false; }
 }
@@ -3392,32 +3536,6 @@ function tryMrg(x,y) {
   return false;
 }
 
-function applyFireDamageToBuilding(x,y,trucksAtScene) {
-  if (!st.grid[y] || !st.grid[y][x]) return false;
-  const cell=st.grid[y][x];
-  if (!cell) return false;
-  const validTypes=['residential','commercial','industrial'];
-  if (!validTypes.includes(cell.type) || cell.type==='empty' || cell.type==='road') return false;
-  const bounds=getBuildingBoundsFromCell(x,y);
-  const w=bounds.w||1, h=bounds.h||1;
-  const baseLevel=typeof cell.level==='number' ? cell.level : 1;
-  const damageAmount=trucksAtScene>1 ? 0 : 1;
-  const newLevel=baseLevel>0 ? Math.max(1, baseLevel - damageAmount) : 0;
-  
-  for (let dy=0; dy<h; dy++) {
-    for (let dx=0; dx<w; dx++) {
-      const nx=bounds.startX+dx, ny=bounds.startY+dy;
-      if (nx<0 || nx>=GR_SZ || ny<0 || ny>=GR_SZ) continue;
-      const target=st.grid[ny][nx];
-      if (!target || target.type!==cell.type) continue;
-      target.level=newLevel;
-      target.abandoned=true;
-      target.age=Math.max(0,(target.age||0)-5);
-    }
-  }
-  return true;
-}
-
 function updFires() {
   st.fires=st.fires.filter(f => {
     f.age++;
@@ -3466,19 +3584,16 @@ function updFires() {
     if (f.age>maxAge) { 
       sendEmergencyVehiclesHome('fire', f.x, f.y);
       
-      const damaged=applyFireDamageToBuilding(f.x,f.y,trucksAtScene);
-      if (!damaged) {
-        const cell=st.grid[f.y][f.x];
-        if (cell && cell.type!=='empty') {
-          const bounds=getBuildingBoundsFromCell(f.x,f.y);
-          const w=bounds.w||1, h=bounds.h||1;
-          for (let dy=0; dy<h; dy++) {
-            for (let dx=0; dx<w; dx++) {
-              const nx=bounds.startX+dx, ny=bounds.startY+dy;
-              if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
-                st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-                normalizeEmptyCell(nx,ny); // Ensure it's 1x1
-              }
+      const cell=st.grid[f.y][f.x];
+      if (cell && cell.type!=='empty') {
+        const bounds=getBuildingBoundsFromCell(f.x,f.y);
+        const w=bounds.w||1, h=bounds.h||1;
+        for (let dy=0; dy<h; dy++) {
+          for (let dx=0; dx<w; dx++) {
+            const nx=bounds.startX+dx, ny=bounds.startY+dy;
+            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+              st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+              normalizeEmptyCell(nx,ny); // Ensure it's 1x1
             }
           }
         }
@@ -3675,7 +3790,11 @@ function startCrimeEvent() {
 
 function simTk() {
   st.tickCount++; st.ticksSinceNews++;
-  if (st.tickCount%8===0) st.year++;
+  if (st.tickCount%12===0) {
+    st.year++;
+    // Clean up old event messages and AI news every year
+    cleanupNewsEvents();
+  }
   let rC=0, cC=0, iC=0, pC=0, poC=0, fC=0, sC=0, hC=0, rdC=0; const cntd={};
   for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
     const k=`${x},${y}`; if (cntd[k]) continue;
@@ -3925,7 +4044,150 @@ function simTk() {
   const jA=cC*5+iC*8, jN=nP*0.6;
   if (jA<=0 || jN<=0) st.employment=0;
   else st.employment=Math.min(100,Math.floor((Math.min(jA,jN)/jN)*100));
-  const inc=Math.floor(st.population*2), mnt=Math.floor(rdC*1+rC*2+cC*3+iC*5+pC*2+poC*10+fC*10+sC*15+hC*20);
+  
+  // IMPROVED ECONOMY CALCULATIONS
+  // 1. Residential tax income (scaled by level and land value)
+  let residentialIncome = 0;
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type==='residential' && hasRdAcc(x,y) && !c.abandoned) {
+      const lv=st.landValue[y][x]||50;
+      const level=c.level||0;
+      const size=(c.w||1)*(c.h||1);
+      const baseTax=2.5; // Base tax per person (increased to balance expenses)
+      const levelMultiplier=level===3?2.5:(level===2?1.8:(level===1?1.3:0.5));
+      const landValueMultiplier=1+(lv-50)/100; // +1% per point above 50
+      const popPerCell=Math.floor(10*size*levelMultiplier);
+      residentialIncome+=Math.floor(popPerCell*baseTax*levelMultiplier*landValueMultiplier);
+    }
+  }
+  
+  // 2. Commercial revenue (based on population served, level, land value, employment)
+  let commercialRevenue = 0;
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type==='commercial' && hasRdAcc(x,y) && !c.abandoned) {
+      const lv=st.landValue[y][x]||50;
+      const level=c.level||0;
+      const size=(c.w||1)*(c.h||1);
+      const baseRevenue=18; // Base revenue per cell (increased to balance expenses)
+      const levelMultiplier=level===3?3.0:(level===2?2.0:(level===1?1.5:0.8));
+      const landValueMultiplier=1+(lv-50)/80;
+      const employmentMultiplier=0.5+(st.employment/200); // 0.5x to 1.0x based on employment
+      const populationMultiplier=Math.min(2.0,1+(st.population/5000)); // More population = more customers
+      commercialRevenue+=Math.floor(baseRevenue*size*levelMultiplier*landValueMultiplier*employmentMultiplier*populationMultiplier);
+    }
+  }
+  
+  // 3. Industrial revenue (based on employment, level, land value)
+  let industrialRevenue = 0;
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type==='industrial' && hasRdAcc(x,y) && !c.abandoned) {
+      const lv=st.landValue[y][x]||50;
+      const level=c.level||0;
+      const size=(c.w||1)*(c.h||1);
+      const baseRevenue=24; // Base revenue per cell (increased to balance expenses)
+      const levelMultiplier=level===3?2.8:(level===2?2.0:(level===1?1.4:0.7));
+      const landValueMultiplier=1+(lv-50)/100;
+      const employmentMultiplier=0.4+(st.employment/167); // 0.4x to 1.0x based on employment
+      industrialRevenue+=Math.floor(baseRevenue*size*levelMultiplier*landValueMultiplier*employmentMultiplier);
+    }
+  }
+  
+  // 4. Tourism income from parks (scaled by park size and city population)
+  let tourismIncome = 0;
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type && c.type.startsWith('park')) {
+      const size=(c.w||1)*(c.h||1);
+        const baseTourism=6; // Base tourism per cell (increased to balance expenses)
+        const populationMultiplier=Math.min(3.0,1+(st.population/3000)); // More people = more visitors
+        const happinessMultiplier=0.7+(st.happiness/143); // Higher happiness = more tourism
+        tourismIncome+=Math.floor(baseTourism*size*populationMultiplier*happinessMultiplier);
+    }
+  }
+  
+  // 5. Apply tax rate multiplier (taxRate is 0-20, convert to 0.5-1.5 multiplier)
+  const taxMultiplier=0.5+(st.taxRate/20); // 10% tax = 1.0x, 20% = 1.5x, 0% = 0.5x
+  const totalIncome=Math.floor((residentialIncome+commercialRevenue+industrialRevenue+tourismIncome)*taxMultiplier);
+  
+  // 6. Improved maintenance (scaled by building level) - INCREASED COSTS
+  let totalMaintenance = 0;
+  
+  // Base building maintenance (increased)
+  for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+    const c=st.grid[y][x];
+    if (c.type==='road') totalMaintenance+=2; // Increased from 1
+    else if (c.type==='residential' && !c.abandoned) {
+      const level=c.level||0;
+      const levelMultiplier=level===3?2.5:(level===2?1.8:(level===1?1.3:0.5));
+      totalMaintenance+=Math.floor(5*levelMultiplier); // Increased from 2
+    }
+    else if (c.type==='commercial' && !c.abandoned) {
+      const level=c.level||0;
+      const levelMultiplier=level===3?2.2:(level===2?1.6:(level===1?1.2:0.6));
+      totalMaintenance+=Math.floor(8*levelMultiplier); // Increased from 3
+    }
+    else if (c.type==='industrial' && !c.abandoned) {
+      const level=c.level||0;
+      const levelMultiplier=level===3?2.0:(level===2?1.5:(level===1?1.1:0.5));
+      totalMaintenance+=Math.floor(12*levelMultiplier); // Increased from 5
+    }
+    else if (c.type && c.type.startsWith('park')) totalMaintenance+=4; // Increased from 2
+    else if (c.type==='police') totalMaintenance+=25; // Increased from 10
+    else if (c.type==='fire') totalMaintenance+=25; // Increased from 10
+    else if (c.type==='school') totalMaintenance+=40; // Increased from 15
+    else if (c.type==='hospital') totalMaintenance+=60; // Increased from 20
+  }
+  
+  // Population-based infrastructure costs (utilities, waste management, etc.)
+  const infrastructureCost = Math.floor(st.population * 0.5); // $0.50 per person
+  
+  // Service operation costs (based on population served)
+  let serviceCosts = 0;
+  if (st.population > 0) {
+    // Police operation cost (scales with population and crime)
+    let avgCrime = 0;
+    for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+      avgCrime += st.crime[y][x] || 30;
+    }
+    avgCrime = avgCrime / (GR_SZ * GR_SZ);
+    const policeOpCost = Math.floor(st.population * 0.3 * (1 + avgCrime/100)); // Higher crime = more police costs
+    serviceCosts += policeOpCost;
+    
+    // Fire department operation cost
+    const fireOpCost = Math.floor(st.population * 0.2);
+    serviceCosts += fireOpCost;
+    
+    // Education costs (scales with population)
+    const educationCost = Math.floor(st.population * 0.4);
+    serviceCosts += educationCost;
+    
+    // Healthcare costs (scales with population and affected by happiness)
+    const healthCost = Math.floor(st.population * 0.35 * (1 + (100-st.happiness)/200));
+    serviceCosts += healthCost;
+  }
+  
+  // Crime-related expenses (damage, insurance, etc.)
+  let crimeExpenses = 0;
+  if (st.population > 0) {
+    let avgCrime = 0;
+    for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
+      avgCrime += st.crime[y][x] || 30;
+    }
+    avgCrime = avgCrime / (GR_SZ * GR_SZ);
+    if (avgCrime > 40) {
+      crimeExpenses = Math.floor(st.population * (avgCrime - 40) / 20); // $1 per person per 20 crime points above 40
+    }
+  }
+  
+  // Road maintenance (increases with city size and traffic)
+  const roadMaintenanceBonus = Math.floor(rdC * 0.1); // Additional cost for extensive road networks
+  
+  totalMaintenance += infrastructureCost + serviceCosts + crimeExpenses + roadMaintenanceBonus;
+  
+  const inc=totalIncome, mnt=totalMaintenance;
   st.money+=inc-mnt;
   let hp=70;
   if (st.population>0) {
@@ -3933,6 +4195,9 @@ function simTk() {
     const sR=(poC+fC+sC+hC)/(st.population/100+1); hp+=Math.min(sR*20,10);
     const jR=(cC+iC)/(rC+1); if (jR<0.5) hp-=10; else if (jR>2) hp-=5;
     if (st.money<0) hp-=15;
+    // Tax rate affects happiness: 10% is neutral, lower = happier, higher = unhappier
+    const taxImpact=(st.taxRate-10)*0.8; // -8 to +8 happiness based on tax rate (0-20%)
+    hp-=taxImpact;
     // Factor in crime - calculate average city crime
     let avgCrime=0;
     for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
