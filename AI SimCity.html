@@ -2492,33 +2492,34 @@ function plcTl(x,y) {
         return;
       }
       
-      // Check if removing a power plant
-      const wasPowerPlant = c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind';
+        // Check if removing a power plant
+        const wasPowerPlant = c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind';
 
-      const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
-      const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
-      const isEmptyZone=isZone && (c.level===0 || c.abandoned);
-      const isSmallMulti=(w===2 && h===1) || (w===1 && h===2) || (w===2 && h===2);
+        const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
+        const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
+        const isMultiTileBuilding=(w>1 || h>1);
+        const isEmptyZoneCell=isZone && (c.level===0 || c.abandoned) && !isMultiTileBuilding;
 
-      // For empty zones: always bulldoze only the clicked cell
-      // For small multi-tile buildings (not empty zones): bulldoze the entire building
-      if (isEmptyZone) {
-        // Empty zones: bulldoze only the clicked cell
-        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-        normalizeEmptyCell(x,y);
-      } else if (isSmallMulti) {
-        // Small multi-tile buildings: bulldoze the entire building
-        for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
-          const nx=startX+dx, ny=startY+dy; if (nx<GR_SZ && ny<GR_SZ) {
-            st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-            normalizeEmptyCell(nx,ny);
+        // Single-tile empty zones (fresh or abandoned) can be cleared one cell at a time.
+        // Any merged/multi-tile structure should always clear its entire footprint to avoid "shifting" artifacts.
+        if (isEmptyZoneCell) {
+          st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+          normalizeEmptyCell(x,y);
+        } else if (isMultiTileBuilding) {
+          for (let dy=0; dy<h; dy++) {
+            for (let dx=0; dx<w; dx++) {
+              const nx=startX+dx, ny=startY+dy;
+              if (nx<GR_SZ && ny<GR_SZ) {
+                st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                normalizeEmptyCell(nx,ny);
+              }
+            }
           }
+        } else {
+          // All other buildings: only bulldoze the clicked cell
+          st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+          normalizeEmptyCell(x,y);
         }
-      } else {
-        // All other buildings: only bulldoze the clicked cell
-        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
-        normalizeEmptyCell(x,y);
-      }
       
       // Recalculate power grid if a power plant was removed
       if (wasPowerPlant) {
