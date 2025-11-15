@@ -330,6 +330,8 @@
 const GR_SZ = 32, CL_SZ = 16;
 const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000,coal:5000,nuclear:10000,wind:3000};
 const POWER_GENERATION = {coal:600,nuclear:1200,wind:240};
+// Approximate monthly maintenance cost per tile for each power plant type
+const POWER_PLANT_MAINTENANCE = {coal:40,nuclear:70,wind:20};
 const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
 const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
 const STATION_MAX_ACTIVE = 2;
@@ -4054,7 +4056,7 @@ function getStatsContent(infoType) {
     const totalIncome=Math.floor((residentialIncome+commercialRevenue+industrialRevenue+tourismIncome)*taxMultiplier);
     
     // Calculate maintenance (same logic as simTk) - UPDATED
-    let buildingMaintenance = 0, infrastructureCost = 0, serviceCosts = 0, crimeExpenses = 0, roadMaintenanceBonus = 0;
+    let buildingMaintenance = 0, infrastructureCost = 0, serviceCosts = 0, crimeExpenses = 0, roadMaintenanceBonus = 0, powerPlantMaintenance = 0;
     
     // Base building maintenance
     for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
@@ -4080,6 +4082,10 @@ function getStatsContent(infoType) {
       else if (c.type==='fire') buildingMaintenance+=25;
       else if (c.type==='school') buildingMaintenance+=40;
       else if (c.type==='hospital') buildingMaintenance+=60;
+      else if (c.type==='coal' || c.type==='nuclear' || c.type==='wind') {
+        const maint = POWER_PLANT_MAINTENANCE[c.type] || 0;
+        powerPlantMaintenance += maint;
+      }
     }
     
     // Population-based costs
@@ -4108,7 +4114,7 @@ function getStatsContent(infoType) {
     const rdC = getCount('road');
     roadMaintenanceBonus = Math.floor(rdC * 0.1);
     
-    const totalMaintenance = buildingMaintenance + infrastructureCost + serviceCosts + crimeExpenses + roadMaintenanceBonus;
+    const totalMaintenance = buildingMaintenance + powerPlantMaintenance + infrastructureCost + serviceCosts + crimeExpenses + roadMaintenanceBonus;
     const netIncome = totalIncome - totalMaintenance;
     
     content = `<div class="flex flex-wrap gap-6 py-2">${statItem('balance', `$${st.money.toLocaleString()}`)}${statItem('income/mo', netIncome>=0?`+$${netIncome.toLocaleString()}`:`-$${Math.abs(netIncome).toLocaleString()}`, netIncome>=0?'text-green-500':'text-red-400')}${statItem('expenses/mo', `-$${totalMaintenance.toLocaleString()}`, 'text-red-400')}</div>
@@ -4126,6 +4132,7 @@ function getStatsContent(infoType) {
           <div class="h-px w-full bg-neutral-700 mb-1"></div>
           <div class="flex flex-wrap gap-6 py-2">
             ${statItem('Buildings', `-$${buildingMaintenance.toLocaleString()}`, 'text-red-400')}
+            ${powerPlantMaintenance > 0 ? statItem('Power', `-$${powerPlantMaintenance.toLocaleString()}`, 'text-red-400') : ''}
             ${infrastructureCost > 0 ? statItem('Infrastructure', `-$${infrastructureCost.toLocaleString()}`, 'text-red-400') : ''}
             ${serviceCosts > 0 ? statItem('Services', `-$${serviceCosts.toLocaleString()}`, 'text-red-400') : ''}
             ${crimeExpenses > 0 ? statItem('Crime', `-$${crimeExpenses.toLocaleString()}`, 'text-red-400') : ''}
@@ -5369,6 +5376,10 @@ function simTk() {
     else if (c.type==='fire') totalMaintenance+=25; // Increased from 10
     else if (c.type==='school') totalMaintenance+=40; // Increased from 15
     else if (c.type==='hospital') totalMaintenance+=60; // Increased from 20
+    else if (c.type==='coal' || c.type==='nuclear' || c.type==='wind') {
+      const maint = POWER_PLANT_MAINTENANCE[c.type] || 0;
+      totalMaintenance += maint;
+    }
   }
   
   // Population-based infrastructure costs (utilities, waste management, etc.)
