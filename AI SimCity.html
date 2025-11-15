@@ -204,24 +204,25 @@
       <canvas id="canvas" class="rounded" style="image-rendering: pixelated;"></canvas>
     </div>
 
-    <div class="flex flex-shrink-0 relative">
-      <div id="subToolbar" class="hidden absolute right-[calc(100%+1px)] w-14 border-r border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto rounded-lg z-10"></div>
-      <div class="w-14 border-l border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto flex-shrink-0" id="mainToolbar">
-        <button data-tool="road" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🛣️</button>
-        <button data-tool="residential" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏠</button>
-        <button data-tool="commercial" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏢</button>
-        <button data-tool="industrial" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏭</button>
-        <button data-submenu="park" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🌳</button>
-        <button data-tool="police" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">👮</button>
-        <button data-tool="fire" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🚒</button>
-        <button data-tool="school" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏫</button>
-        <button data-tool="hospital" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏥</button>
+    <div class="flex flex-shrink-0 relative" style="overflow: visible;">
+      <div id="subToolbar" class="hidden absolute right-[calc(100%+1px)] w-14 border-r border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto rounded-lg z-10" style="overflow-x: visible;"></div>
+      <div class="w-14 border-l border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto flex-shrink-0" id="mainToolbar" style="overflow-x: visible;">
+        <button data-tool="road" data-tooltip="road" data-shortcut="R" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🛣️</button>
+        <button data-tool="residential" data-tooltip="residential" data-shortcut="H" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏠</button>
+        <button data-tool="commercial" data-tooltip="commercial" data-shortcut="C" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏢</button>
+        <button data-tool="industrial" data-tooltip="industrial" data-shortcut="I" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏭</button>
+        <button data-submenu="park" data-tooltip="park" data-shortcut="P" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🌳</button>
+        <button data-tool="police" data-tooltip="police" data-shortcut="O" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🚨</button>
+        <button data-tool="fire" data-tooltip="fire" data-shortcut="F" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🚒</button>
+        <button data-tool="school" data-tooltip="school" data-shortcut="S" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏫</button>
+        <button data-tool="hospital" data-tooltip="hospital" data-shortcut="T" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏥</button>
         <div class="w-full flex flex-col">
           <div class="h-1"></div>
           <div class="h-px w-full bg-neutral-700"></div>
           <div class="h-1"></div>
         </div>
-        <button data-tool="bulldoze" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">💥</button>
+        <button data-submenu="disaster" data-tooltip="disasters" data-shortcut="W" class="disaster-btn tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center" style="display: none;">⚠️</button>
+        <button data-tool="bulldoze" data-tooltip="demolish" data-shortcut="D" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">💥</button>
       </div>
     </div>
   </div>
@@ -275,10 +276,36 @@
 }
 .ticker-roll { animation: tickerRollUp 0.5s ease-out forwards; }
 .earthquake { animation: shake 0.5s ease-in-out; }
+.tool-btn {
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  position: relative;
+}
+.tooltip {
+  position: fixed;
+  background-color: rgb(30, 30, 30);
+  color: rgb(229, 229, 229);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10000;
+  border: 1px solid rgb(64, 64, 64);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.tooltip.show {
+  opacity: 1;
+}
+.tooltip-shortcut {
+  color: rgb(163, 163, 163);
+  margin-left: 6px;
+}
 @media (hover: hover) and (pointer: fine) {
-  .tool-btn:hover { background-color: rgb(64, 64, 64); }
-  .tool-btn[data-tool="bulldoze"]:hover { background-color: rgb(127, 29, 29); }
-  .tool-btn.submenu-active:hover { background-color: rgb(127, 29, 29); }
+  .tool-btn:hover { background-color: rgb(64, 64, 64); opacity: 1 !important; }
+  .tool-btn[data-tool="bulldoze"]:hover { background-color: rgb(127, 29, 29); opacity: 1 !important; }
+  .tool-btn.submenu-active:hover { background-color: rgb(127, 29, 29); opacity: 1 !important; }
 }
 </style>
 
@@ -359,6 +386,12 @@ function normalizeEmptyCell(x,y) {
     st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
   }
 }
+  
+  function snapCenterToPixelGrid(value, halfSize) {
+    const fractional = halfSize - Math.floor(halfSize);
+    if (Math.abs(fractional) < 1e-6) return Math.round(value);
+    return Math.round(value - fractional) + fractional;
+  }
 
 function initGr(tt='balanced') {
   st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[]; st.stationDispatches={};
@@ -545,7 +578,7 @@ function drTl(x,y,tp,lv,ab,w,h) {
     else {
       // For 2x2 buildings, make them grow taller with level
       const bh=w===2&&h===2?(lv===3?ht-4:(lv===2?ht-5:ht-9)):w===2||h===2?ht-3:(lv===1?9:(lv===2?11:13));
-      const yo=w===2&&h===2?(lv===3?3:(lv===2?4:8)):w===2||h===2?2:(lv===1?6:(lv===2?2:1));
+      const yo=w===2&&h===2?(lv===3?3:(lv===2?4:8)):w===2||h===2?2:(lv===1?6:(lv===2?4:1));
       ctx.fillStyle=w===2&&h===2?(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')):w===2||h===2?'#2563eb':(lv===3?'#3b82f6':(lv===2?'#2563eb':'#1e40af')); 
       ctx.fillRect(px+2,py+yo,wd-4,bh);
       ctx.fillStyle=w===2&&h===2?(lv===3?'#2563eb':(lv===2?'#1e40af':'#1d4ed8')):w===2||h===2?'#1e40af':(lv===3?'#2563eb':'#1e40af'); 
@@ -899,44 +932,57 @@ function drGr() {
       }
     }
     
-    // Translate to car center, rotate, then translate back
-    let carWidth = 3, carHeight = 2;
-    if (c.type === 'fire') {
-      carWidth = 7; // Fire trucks are longer
-      carHeight = 4;
-    } else if (c.type === 'police') {
-      carWidth = 5;
-      carHeight = 4;
-    }
-    const carCenterX = c.x + carWidth / 2;
-    const carCenterY = c.y + carHeight / 2;
-    ctx.translate(carCenterX, carCenterY);
-    ctx.rotate(angle);
-    ctx.translate(-carCenterX, -carCenterY);
+      // Translate to car center, rotate, then translate back
+      let carWidth = 3, carHeight = 2;
+      if (c.type === 'fire') {
+        carWidth = 7; // Fire trucks are longer
+        carHeight = 4;
+      } else if (c.type === 'police') {
+        carWidth = 5;
+        carHeight = 4;
+      }
+      const halfWidth = carWidth / 2;
+      const halfHeight = carHeight / 2;
+      let drawX = c.x;
+      let drawY = c.y;
+      let carCenterX = drawX + halfWidth;
+      let carCenterY = drawY + halfHeight;
+      const isVertical = Math.abs(Math.abs(angle) - Math.PI / 2) < 0.001;
+      if (isVertical) {
+        const snappedCenterX = snapCenterToPixelGrid(carCenterX, halfHeight);
+        const snappedCenterY = snapCenterToPixelGrid(carCenterY, halfWidth);
+        drawX += snappedCenterX - carCenterX;
+        drawY += snappedCenterY - carCenterY;
+        carCenterX = snappedCenterX;
+        carCenterY = snappedCenterY;
+      }
+      ctx.translate(carCenterX, carCenterY);
+      ctx.rotate(angle);
+      ctx.translate(-carCenterX, -carCenterY);
     
     // Draw emergency vehicles with special styling
     if (c.type === 'police') {
       // Police car: dark gray body with single red/blue siren
       ctx.fillStyle = '#1a1a1a'; // Very dark gray, almost black
-      ctx.fillRect(c.x-1, c.y-1, 5, 4);
+        ctx.fillRect(drawX-1, drawY-1, 5, 4);
       // Single red/blue alternating siren on top center
       const time = Date.now() / 200; // Blinking effect
       const redOn = Math.floor(time) % 2 === 0;
       ctx.fillStyle = redOn ? '#ff0000' : '#0066ff'; // Red or blue
-      ctx.fillRect(Math.floor(c.x)+1, c.y-1, 2, 1); // Top center siren (2px wide)
+        ctx.fillRect(Math.floor(drawX)+1, drawY-1, 2, 1); // Top center siren (2px wide)
     } else if (c.type === 'fire') {
       // Fire truck: longer body with single side-mounted flashing siren
-      ctx.fillStyle = '#ff0000';
-      ctx.fillRect(c.x-2, c.y-1, 7, 4); // Longer: 7x4 instead of 5x4
-      // Single side siren (left side) alternating red/yellow
+      ctx.fillStyle = '#8b0000';
+        ctx.fillRect(drawX-2, drawY-1, 7, 4); // Longer: 7x4 instead of 5x4
+      // Single side siren (left side) alternating bright red/yellow
       const time = Date.now() / 200; // Blinking effect
       const redOn = Math.floor(time) % 2 === 0;
-      ctx.fillStyle = redOn ? '#ff0000' : '#ffff00';
-      ctx.fillRect(c.x-2, c.y, 1, 2); // Vertical bar on left side
+      ctx.fillStyle = redOn ? '#ff3333' : '#ffff00';
+        ctx.fillRect(drawX-2, drawY, 1, 2); // Vertical bar on left side
     } else {
       // Regular cars
       ctx.fillStyle=c.color;
-      ctx.fillRect(c.x, c.y, 3, 2);
+        ctx.fillRect(drawX, drawY, 3, 2);
     }
     
     ctx.restore();
@@ -1255,7 +1301,9 @@ function dispatchEmergencyVehicle(stationType, targetX, targetY, missionType) {
     entering: entering,
     entryTarget: entryTarget,
     exiting: false,
+    exitLaneTarget: null,
     exitTarget: null,
+    positioningForExit: false,
     stationRoad: { x: start.x, y: start.y },
     sceneRoad: { x: end.x, y: end.y },
     missionPhase: 'enroute',
@@ -1336,6 +1384,50 @@ function prepareEmergencyVehicleReturn(car, opts={}) {
     }
   }
   car.entryTarget = { x: entryX, y: entryY };
+
+  const stationBuilding = car.stationCoords || { x: car.stationRoad.x, y: car.stationRoad.y };
+  const endIdx = returnPath.length - 1;
+  const endNode = returnPath[endIdx];
+  const endCenterX = endNode.x * CL_SZ + 7;
+  const endCenterY = endNode.y * CL_SZ + 7;
+  let exitLaneX = endCenterX;
+  let exitLaneY = endCenterY;
+  if (returnPath.length >= 2) {
+    const dxLast = returnPath[endIdx].x - returnPath[endIdx - 1].x;
+    const dyLast = returnPath[endIdx].y - returnPath[endIdx - 1].y;
+    if (Math.abs(dxLast) > Math.abs(dyLast)) {
+      exitLaneY += dxLast > 0 ? 5 : -5;
+    } else {
+      exitLaneX += dyLast > 0 ? -5 : 5;
+    }
+  }
+  const exitDir = getEdgeDirection(stationBuilding, stationRoad);
+  let exitTarget = null;
+  if (exitDir.x !== 0 || exitDir.y !== 0) {
+    exitTarget = { x: exitLaneX, y: exitLaneY };
+    if (Math.abs(exitDir.x) >= Math.abs(exitDir.y) && exitDir.x !== 0) {
+      exitTarget.x = endCenterX + exitDir.x * CAR_EDGE_OFFSET;
+    } else if (exitDir.y !== 0) {
+      exitTarget.y = endCenterY + exitDir.y * CAR_EDGE_OFFSET;
+    }
+  } else {
+    // If no direction detected, use a default offset toward the station
+    exitTarget = { x: exitLaneX, y: exitLaneY };
+    // Try to find direction from road to station building
+    const dx = stationBuilding.x - stationRoad.x;
+    const dy = stationBuilding.y - stationRoad.y;
+    if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) {
+      exitTarget.x = endCenterX + (dx > 0 ? CAR_EDGE_OFFSET : -CAR_EDGE_OFFSET);
+    } else if (dy !== 0) {
+      exitTarget.y = endCenterY + (dy > 0 ? CAR_EDGE_OFFSET : -CAR_EDGE_OFFSET);
+    } else {
+      // Station is on the road tile, just offset slightly
+      exitTarget.x = endCenterX + CAR_EDGE_OFFSET;
+    }
+  }
+  car.exitLaneTarget = { x: exitLaneX, y: exitLaneY };
+  car.exitTarget = exitTarget;
+  car.positioningForExit = false;
 }
 
 function sendEmergencyVehiclesHome(missionType, targetX, targetY) {
@@ -1354,26 +1446,27 @@ function attemptMissionArrival(car) {
     y: car.mission.targetY * CL_SZ + CL_SZ / 2
   };
   const roadTarget = car.sceneRoad ? getRoadCenterCoords(car.sceneRoad) : null;
-  let minDist = Infinity;
-  let chosen = 'none';
-  [buildingTarget, roadTarget].forEach((pt, idx) => {
-    if (!pt) return;
-    const dx = pt.x - car.x;
-    const dy = pt.y - car.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist < minDist) { minDist = dist; chosen = idx===0?'building':'road'; }
-  });
-  if (!isFinite(minDist)) return false;
+  // Fire and police cars should always stop at the road tile center, no offsets
+  const targetToUse = roadTarget || buildingTarget;
+  if (!targetToUse) return false;
+  const dx = targetToUse.x - car.x;
+  const dy = targetToUse.y - car.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
   const threshold = CL_SZ * 2.5;
-    if (minDist < threshold) {
+  if (dist < threshold) {
     if (!car.mission.arrived) {
       car.mission.arrived = true;
       car.missionPhase = 'onscene';
+        // Police and fire vehicles stop exactly at road tile center, no lane offsets
         const holdTarget = roadTarget || buildingTarget;
         if (holdTarget) {
           car.holdPosition = { x: holdTarget.x, y: holdTarget.y };
           car.x = car.holdPosition.x;
           car.y = car.holdPosition.y;
+          // Clear any lane offsets for emergency vehicles
+          if (car.type === 'police' || car.type === 'fire') {
+            car.laneOffset = 0;
+          }
         } else {
           car.holdPosition = { x: car.x, y: car.y };
         }
@@ -1546,6 +1639,7 @@ function spawnCar() {
       }
     }
     const exitDir=getEdgeDirection(exitBuilding,exitRoad);
+    let exitLaneTarget={x:exitLaneX,y:exitLaneY};
     let exitTarget=null;
     if (exitDir.x!==0 || exitDir.y!==0) {
       exitTarget={x:exitLaneX,y:exitLaneY};
@@ -1568,6 +1662,7 @@ function spawnCar() {
       entering:entering,
       entryTarget:entryTarget,
       exiting:false,
+      exitLaneTarget:exitLaneTarget,
       exitTarget:exitTarget
     });
 }
@@ -1603,11 +1698,22 @@ function updCars() {
       if (c.holdPosition) {
         c.x = c.holdPosition.x;
         c.y = c.holdPosition.y;
+        // Ensure emergency vehicles stay at exact road center, no offsets
+        if ((c.type === 'police' || c.type === 'fire') && c.sceneRoad) {
+          const exactCenter = getRoadCenterCoords(c.sceneRoad);
+          c.x = exactCenter.x;
+          c.y = exactCenter.y;
+          c.holdPosition = exactCenter;
+          c.laneOffset = 0;
+        }
       } else if (c.sceneRoad) {
         const center = getRoadCenterCoords(c.sceneRoad);
         c.holdPosition = center;
         c.x = center.x;
         c.y = center.y;
+        if (c.type === 'police' || c.type === 'fire') {
+          c.laneOffset = 0;
+        }
       } else {
         c.holdPosition = { x: c.x, y: c.y };
       }
@@ -1617,70 +1723,106 @@ function updCars() {
     let remainingDist=getCarSpeedPerFrame(c);
     if (remainingDist<=0) return true;
     
-    while (remainingDist>0) {
-      let targetStage='path';
-      let tx,ty;
-      if (c.entering && c.entryTarget) {
-        targetStage='entry';
-        tx=c.entryTarget.x;
-        ty=c.entryTarget.y;
-      } else if (c.exiting && c.exitTarget) {
-        targetStage='exit';
-        tx=c.exitTarget.x;
-        ty=c.exitTarget.y;
+    // Helper to check if car reached end of path
+    const isAtPathEnd = () => c.pathIdx >= c.path.length - 1;
+    
+    // Helper to initiate exit sequence
+    const startExitSequence = () => {
+      if (c.exitLaneTarget) {
+        c.positioningForExit = true;
+      } else if (c.exitTarget) {
+        c.exiting = true;
       } else {
-        if (c.pathIdx>=c.path.length-1) {
-            if (c.exitTarget) {
-              c.exiting=true;
-              continue;
-            }
-            if (c.mission && !c.mission.returning) {
-              if (attemptMissionArrival(c)) return true;
-              if (c.holdPosition) {
-                c.x = c.holdPosition.x;
-                c.y = c.holdPosition.y;
-              } else {
-                c.holdPosition = { x: c.x, y: c.y };
-              }
-              return true;
-            }
-            return finalizeRemoval();
-        }
-        const nextTarget=getCarSegmentTarget(c);
-        tx=nextTarget.tx;
-        ty=nextTarget.ty;
+        return false; // No exit sequence available
       }
+      return true;
+    };
+    
+    while (remainingDist>0) {
+      // Determine target based on current car state
+      let targetStage, tx, ty;
       
-      const dx=tx-c.x, dy=ty-c.y;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if (dist===0) {
-        if (targetStage==='entry') {
-          c.entering=false;
-          c.entryTarget=null;
+      if (c.entering && c.entryTarget) {
+        targetStage = 'entry';
+        tx = c.entryTarget.x;
+        ty = c.entryTarget.y;
+      } else if (c.exiting && c.exitTarget) {
+        targetStage = 'exit';
+        tx = c.exitTarget.x;
+        ty = c.exitTarget.y;
+      } else if (c.positioningForExit && c.exitLaneTarget) {
+        targetStage = 'positioning';
+        tx = c.exitLaneTarget.x;
+        ty = c.exitLaneTarget.y;
+      } else {
+        // Handle path-following and end-of-path logic
+        if (isAtPathEnd()) {
+          // Mission vehicles that haven't arrived yet
+          if (c.mission && !c.mission.returning) {
+            if (attemptMissionArrival(c)) return true;
+            c.holdPosition = c.holdPosition || { x: c.x, y: c.y };
+            c.x = c.holdPosition.x;
+            c.y = c.holdPosition.y;
+            return true;
+          }
+          // Start exit sequence or despawn
+          if (!startExitSequence()) {
+            return finalizeRemoval();
+          }
           continue;
         }
-        if (targetStage==='exit') return finalizeRemoval();
-        c.pathIdx++;
-        if (c.pathIdx>=c.path.length-1) {
-            if (c.exitTarget) {
-              c.exiting=true;
-              continue;
-            }
+        
+        // Normal path following
+        targetStage = 'path';
+        const nextTarget = getCarSegmentTarget(c);
+        tx = nextTarget.tx;
+        ty = nextTarget.ty;
+      }
+      
+      // Move toward target
+      const dx = tx - c.x;
+      const dy = ty - c.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      // Snap to target when very close
+      if (dist < CAR_SNAP_THRESHOLD) {
+        c.x = tx;
+        c.y = ty;
+        
+        // Handle state transitions
+        if (targetStage === 'entry') {
+          c.entering = false;
+          c.entryTarget = null;
+        } else if (targetStage === 'positioning') {
+          c.positioningForExit = false;
+          if (c.exitTarget) {
+            c.exiting = true;
+          } else {
             return finalizeRemoval();
+          }
+        } else if (targetStage === 'exit') {
+          return finalizeRemoval();
+        } else {
+          // Advance path
+          c.pathIdx++;
+          if (isAtPathEnd()) {
+            if (!startExitSequence()) {
+              return finalizeRemoval();
+            }
+          } else {
+            updateCarLaneOffset(c);
+          }
         }
-        updateCarLaneOffset(c);
         continue;
       }
       
-      const step=Math.min(dist,remainingDist);
-      c.x+=dx/dist*step;
-      c.y+=dy/dist*step;
-      remainingDist-=step;
-      if (step===dist) {
-        continue;
-      } else {
-        break;
-      }
+      // Move step toward target
+      const step = Math.min(dist, remainingDist);
+      c.x += dx / dist * step;
+      c.y += dy / dist * step;
+      remainingDist -= step;
+      
+      if (step < dist) break; // Not enough distance remaining
     }
     return true;
   });
@@ -2064,12 +2206,14 @@ function getCarSpeedMultiplier() {
 
 const CAR_BASE_SPEED = 1.0;
 const CAR_EDGE_OFFSET = CL_SZ/2 - 1;
+const CAR_SNAP_THRESHOLD = 0.5;
+const EMERGENCY_SPEED_MULTIPLIER = 1.2;
 
 function getCarSpeedPerFrame(car) {
   const baseSpeed = CAR_BASE_SPEED * getCarSpeedMultiplier();
-  // Emergency vehicles move 3x faster to respond quickly
-  if (car && car.mission && !car.mission.arrived) {
-    return baseSpeed * 3;
+  // Police and fire cars move faster than normal cars
+  if (car && (car.type === 'police' || car.type === 'fire')) {
+    return baseSpeed * EMERGENCY_SPEED_MULTIPLIER;
   }
   return baseSpeed;
 }
@@ -2312,10 +2456,15 @@ let activeSubmenu = null;
 
 const submenuItems = {
   park: [
-    { tool: 'park', icon: '🌳' },
-    { tool: 'park2', icon: '🌸' },
-    { tool: 'park3', icon: '🌲' },
-    { tool: 'park4', icon: '🌻' }
+    { tool: 'park', icon: '🌳', tooltip: 'park', shortcut: '1' },
+    { tool: 'park2', icon: '🌸', tooltip: 'park', shortcut: '2' },
+    { tool: 'park3', icon: '🌲', tooltip: 'park', shortcut: '3' },
+    { tool: 'park4', icon: '🌻', tooltip: 'park', shortcut: '4' }
+  ],
+  disaster: [
+    { disaster: 'fire', icon: '🔥', tooltip: 'fire', shortcut: '1' },
+    { disaster: 'crime', icon: '🚨', tooltip: 'crime', shortcut: '2' },
+    { disaster: 'earthquake', icon: '🌍', tooltip: 'earthquake', shortcut: '3' }
   ]
 };
 
@@ -2341,19 +2490,48 @@ function openSubmenu(button, submenuKey) {
   items.forEach(item => {
     const subBtn = document.createElement('button');
     subBtn.className = 'tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center';
-    subBtn.dataset.tool = item.tool;
+    if (item.tool) {
+      subBtn.dataset.tool = item.tool;
+    }
+    if (item.disaster) {
+      subBtn.dataset.disaster = item.disaster;
+    }
+    if (item.tooltip) {
+      subBtn.dataset.tooltip = item.tooltip;
+      if (item.shortcut) {
+        subBtn.dataset.shortcut = item.shortcut;
+      }
+      subBtn.addEventListener('mouseenter', () => {
+        showTooltip(subBtn, item.tooltip);
+      });
+      subBtn.addEventListener('mouseleave', () => {
+        hideTooltip();
+      });
+    }
     subBtn.textContent = item.icon;
     subBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       plySnd('click');
-      selTl(item.tool);
-      // Don't close submenu - keep it open so user can switch tools
+      if (item.tool) {
+        selTl(item.tool);
+        // Don't close submenu - keep it open so user can switch tools
+      } else if (item.disaster) {
+        // Trigger disaster and close submenu
+        if (item.disaster === 'fire') {
+          startFire();
+        } else if (item.disaster === 'crime') {
+          startCrimeEvent();
+        } else if (item.disaster === 'earthquake') {
+          startQuake();
+        }
+        closeSubmenu();
+      }
     });
     subToolbar.appendChild(subBtn);
   });
   
-  // Auto-select the first tool in the submenu
-  if (items.length > 0) {
+  // Auto-select the first tool in the submenu (only for tools, not disasters)
+  if (items.length > 0 && items[0].tool) {
     selTl(items[0].tool);
   }
   
@@ -2412,15 +2590,207 @@ function updateToolSelection() {
       b.style.borderColor = '#666';
       b.style.opacity = '1';
     } else {
-      // All other unselected buttons get reduced opacity (including submenu toggle showing X)
+      // All other unselected buttons get reduced opacity (including submenu toggle showing X and disaster buttons)
       b.style.opacity = '0.5';
     }
   });
 }
 
+// Create tooltip element
+let tooltipEl = null;
+function createTooltip() {
+  if (!tooltipEl) {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'tooltip';
+    document.body.appendChild(tooltipEl);
+  }
+  return tooltipEl;
+}
+
+function showTooltip(button, text) {
+  // Only show on devices that support hover
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    const tooltip = createTooltip();
+    const shortcut = button.dataset.shortcut;
+    if (shortcut) {
+      tooltip.innerHTML = `${text}<span class="tooltip-shortcut">${shortcut}</span>`;
+    } else {
+      tooltip.textContent = text;
+    }
+    tooltip.classList.add('show');
+    
+    const rect = button.getBoundingClientRect();
+    tooltip.style.left = `${rect.left - tooltip.offsetWidth - 8}px`;
+    tooltip.style.top = `${rect.top + rect.height / 2}px`;
+    tooltip.style.transform = 'translateY(-50%)';
+    
+    // Recalculate position after tooltip is rendered
+    setTimeout(() => {
+      const tooltipRect = tooltip.getBoundingClientRect();
+      tooltip.style.left = `${rect.left - tooltipRect.width - 8}px`;
+    }, 0);
+  }
+}
+
+function hideTooltip() {
+  if (tooltipEl) {
+    tooltipEl.classList.remove('show');
+  }
+}
+
+// Keyboard shortcut mapping
+const keyToTool = {
+  'r': 'road',
+  'R': 'road',
+  'h': 'residential',
+  'H': 'residential',
+  'c': 'commercial',
+  'C': 'commercial',
+  'i': 'industrial',
+  'I': 'industrial',
+  'p': 'park',
+  'P': 'park',
+  'o': 'police',
+  'O': 'police',
+  'f': 'fire',
+  'F': 'fire',
+  's': 'school',
+  'S': 'school',
+  't': 'hospital',
+  'T': 'hospital',
+  'd': 'bulldoze',
+  'D': 'bulldoze',
+  'w': 'disaster',
+  'W': 'disaster'
+};
+
+function triggerToolByKey(key) {
+  const tool = keyToTool[key];
+  if (!tool) return false;
+  
+  // Find the button for this tool
+  if (tool === 'disaster') {
+    const disasterBtn = document.querySelector('[data-submenu="disaster"]');
+    if (disasterBtn && st.disastersEnabled) {
+      if (activeSubmenu && activeSubmenu.button === disasterBtn) {
+        closeSubmenu();
+      } else {
+        openSubmenu(disasterBtn, 'disaster');
+      }
+      return true;
+    }
+  } else if (tool === 'park') {
+    const parkBtn = document.querySelector('[data-submenu="park"]');
+    if (parkBtn) {
+      if (activeSubmenu && activeSubmenu.button === parkBtn) {
+        closeSubmenu();
+      } else {
+        openSubmenu(parkBtn, 'park');
+      }
+      return true;
+    }
+  } else {
+    const toolBtn = document.querySelector(`[data-tool="${tool}"]`);
+    if (toolBtn) {
+      toolBtn.click();
+      return true;
+    }
+  }
+  return false;
+}
+
+// Handle submenu shortcuts when submenu is open
+function handleSubmenuShortcut(key) {
+  if (!activeSubmenu) return false;
+  
+  if (activeSubmenu.submenuKey === 'disaster') {
+    const shortcuts = { '1': 'fire', '2': 'crime', '3': 'earthquake' };
+    const disaster = shortcuts[key];
+    if (disaster) {
+      const subBtn = document.querySelector(`[data-disaster="${disaster}"]`);
+      if (subBtn) {
+        subBtn.click();
+        return true;
+      }
+    }
+  } else if (activeSubmenu.submenuKey === 'park') {
+    const shortcuts = { '1': 'park', '2': 'park2', '3': 'park3', '4': 'park4' };
+    const parkTool = shortcuts[key];
+    if (parkTool) {
+      const subBtn = document.querySelector(`[data-tool="${parkTool}"]`);
+      if (subBtn) {
+        subBtn.click();
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function setSpeedByNumber(num) {
+  plySnd('click');
+  if (num === 0) {
+    st.speed = 0;
+  } else if (num === 1) {
+    st.speed = 3000;
+  } else if (num === 2) {
+    st.speed = 1500;
+  } else if (num === 3) {
+    st.speed = 500;
+  }
+  sv();
+  if (tkTmr) clearInterval(tkTmr);
+  if (st.speed > 0) {
+    TK_INT = st.speed;
+    tkTmr = setInterval(simTk, TK_INT);
+    updNwsTk();
+  } else {
+    updNwsTk();
+  }
+  updUI();
+}
+
+document.addEventListener('keydown', (e) => {
+  // Don't trigger if user is typing in an input field
+  const activeElement = document.activeElement;
+  if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable)) {
+    return;
+  }
+  
+  // Handle speed controls (0-3) only if no submenu is open
+  if (!activeSubmenu && (e.key === '0' || e.key === '1' || e.key === '2' || e.key === '3')) {
+    const num = parseInt(e.key);
+    setSpeedByNumber(num);
+    e.preventDefault();
+    return;
+  }
+  
+  // Handle submenu shortcuts when submenu is open
+  if (handleSubmenuShortcut(e.key)) {
+    e.preventDefault();
+    return;
+  }
+  
+  // Handle main tool shortcuts
+  if (triggerToolByKey(e.key)) {
+    e.preventDefault();
+  }
+});
+
 document.querySelectorAll('.tool-btn').forEach(b => {
+  const tooltipText = b.dataset.tooltip;
+  if (tooltipText) {
+    b.addEventListener('mouseenter', () => {
+      showTooltip(b, tooltipText);
+    });
+    b.addEventListener('mouseleave', () => {
+      hideTooltip();
+    });
+  }
+  
   b.addEventListener('click', (e) => {
     plySnd('click');
+    hideTooltip();
     
     // Check if this button has a submenu
     if (b.dataset.submenu) {
@@ -2438,6 +2808,13 @@ document.querySelectorAll('.tool-btn').forEach(b => {
     }
   });
 });
+
+function updateDisasterButtonsVisibility() {
+  const disasterButtons = document.querySelectorAll('.disaster-btn');
+  disasterButtons.forEach(btn => {
+    btn.style.display = st.disastersEnabled ? 'flex' : 'none';
+  });
+}
 
 function centerCanvas() {
   const gridContainer = document.getElementById('grid');
@@ -2706,7 +3083,7 @@ function calcLV(x,y) {
   for (let dy=-3; dy<=3; dy++) for (let dx=-3; dx<=3; dx++) {
     const nx=x+dx, ny=y+dy; if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
       const d=Math.abs(dx)+Math.abs(dy), c=st.grid[ny][nx];
-      if (c.type.startsWith('park')) { const m=(c.w||1)*(c.h||1); pk+=(7-d)*2*m; }
+      if (c.type.startsWith('park')) { const m=(c.w||1)*(c.h||1); const sizeBoost=m>1?1.5:1; pk+=(7-d)*2*m*sizeBoost; }
       else if (c.type==='industrial') { const m=(c.w||1)*(c.h||1); pl+=(7-d)*2*m; }
       else if (c.type==='police'||c.type==='fire'||c.type==='school'||c.type==='hospital') sv+=(7-d);
     }
@@ -3571,7 +3948,15 @@ if (!ld()) { initGr('balanced'); st.newsEvents=['Welcome to '+st.cityName+'!']; 
 if (!st.zoom) st.zoom=1;
 if (st.disastersEnabled === undefined) st.disastersEnabled = true;
 const disastersToggleEl = document.getElementById('disastersToggle');
-if (disastersToggleEl) disastersToggleEl.checked = st.disastersEnabled;
+if (disastersToggleEl) {
+  disastersToggleEl.checked = st.disastersEnabled;
+  disastersToggleEl.addEventListener('change', (e) => {
+    st.disastersEnabled = e.target.checked;
+    updateDisasterButtonsVisibility();
+    sv();
+  });
+}
+updateDisasterButtonsVisibility();
 applyZoom();
 drGr(); updUI(); updNwsTk(); selTl('road');
 if (st.speed>0) { TK_INT=st.speed; tkTmr=setInterval(simTk,TK_INT); }
