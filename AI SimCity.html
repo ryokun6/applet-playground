@@ -129,6 +129,10 @@
           <span class="text-neutral-500">♥</span>
           <span id="happiness" class="text-white tabular-nums">70</span>
         </div>
+        <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="powerBtn">
+          <span class="text-neutral-500">⚡</span>
+          <span id="power" class="text-white tabular-nums">0/0</span>
+        </div>
       </div>
     </div>
   </div>
@@ -211,11 +215,14 @@
         <button data-tool="residential" data-tooltip="residential" data-shortcut="H" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏠</button>
         <button data-tool="commercial" data-tooltip="commercial" data-shortcut="C" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏢</button>
         <button data-tool="industrial" data-tooltip="industrial" data-shortcut="I" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏭</button>
+        <div class="w-full flex flex-col">
+          <div class="h-1"></div>
+          <div class="h-px w-full bg-neutral-700"></div>
+          <div class="h-1"></div>
+        </div>
+        <button data-submenu="power" data-tooltip="power" data-shortcut="E" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">⚡</button>
         <button data-submenu="park" data-tooltip="park" data-shortcut="P" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🌳</button>
-        <button data-tool="police" data-tooltip="police" data-shortcut="O" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🚓</button>
-        <button data-tool="fire" data-tooltip="fire" data-shortcut="F" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🚒</button>
-        <button data-tool="school" data-tooltip="school" data-shortcut="S" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏫</button>
-        <button data-tool="hospital" data-tooltip="hospital" data-shortcut="T" class="tool-btn w-full aspect-square text-2xl rounded transition-colors border border-transparent flex items-center justify-center">🏥</button>
+        <button data-submenu="institution" data-tooltip="institutions" data-shortcut="S" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🏛️</button>
         <div class="w-full flex flex-col">
           <div class="h-1"></div>
           <div class="h-px w-full bg-neutral-700"></div>
@@ -312,12 +319,35 @@
 <script>
 const GR_SZ = 32, CL_SZ = 16;
 let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
-const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000};
+const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000,coal:5000,nuclear:10000,wind:3000};
+
+// Power generation amounts per plant
+const POWER_GENERATION = {coal:50,nuclear:100,wind:20};
+
+// Power consumption per building type and level
+function getPowerConsumption(buildingType, level) {
+  if (buildingType === 'residential') {
+    if (level === 2) return 5;
+    if (level === 3) return 10;
+    return 0; // L1 residential doesn't need power
+  } else if (buildingType === 'commercial') {
+    if (level === 1) return 10;
+    if (level === 2) return 20;
+    if (level === 3) return 30;
+    return 0;
+  } else if (buildingType === 'industrial') {
+    if (level === 1) return 15;
+    if (level === 2) return 30;
+    if (level === 3) return 45;
+    return 0;
+  }
+  return 0;
+}
 const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
 const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
 const STATION_MAX_ACTIVE = 2;
 
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10};
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1990,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[]};
 let nextBuildingId = 1;
 let showLandValueOverlay = false;
 let showCrimeOverlay = false;
@@ -395,10 +425,11 @@ function normalizeEmptyCell(x,y) {
 
 function initGr(tt='balanced') {
   st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[]; st.stationDispatches={};
+  st.powerGrid=[];
   for (let y=0; y<GR_SZ; y++) {
-    const r=[], vr=[], cr=[];
-    for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); }
-    st.grid.push(r); st.landValue.push(vr); st.crime.push(cr);
+    const r=[], vr=[], cr=[], pg=[];
+    for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); pg.push(false); }
+    st.grid.push(r); st.landValue.push(vr); st.crime.push(cr); st.powerGrid.push(pg);
   }
 }
 
@@ -424,6 +455,14 @@ function ld() {
           }
         if (!st.zoom) st.zoom=1;
         if (st.disastersEnabled === undefined) st.disastersEnabled = true;
+        if (!st.powerGrid) {
+          st.powerGrid = [];
+          for (let y=0; y<GR_SZ; y++) {
+            const pg = [];
+            for (let x=0; x<GR_SZ; x++) pg.push(false);
+            st.powerGrid.push(pg);
+          }
+        }
         for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) { 
           if (!st.grid[y][x].level) st.grid[y][x].level=0; 
           if (!st.grid[y][x].w) st.grid[y][x].w=1; 
@@ -434,6 +473,8 @@ function ld() {
 
         // Rebuild buildingId metadata after loading to ensure consistent grouping
         rebuildBuildingIdsFromGrid();
+        // Recalculate power grid after loading
+        calculatePowerGrid();
         return true;
       }
     }
@@ -469,6 +510,25 @@ function drRd(px,py,nb) {
 
 function drTl(x,y,tp,lv,ab,w,h) {
   const px=x*CL_SZ, py=y*CL_SZ, wd=w*CL_SZ, ht=h*CL_SZ, tr=st.terrain[y][x];
+  const c = st.grid[y][x];
+  
+  // Check if building needs power but doesn't have it
+  let needsPowerButNoPower = false;
+  if (!ab && (tp === 'residential' || tp === 'commercial' || tp === 'industrial')) {
+    const level = lv || 0;
+    let needsPower = false;
+    if (tp === 'residential' && (level === 2 || level === 3)) {
+      needsPower = true;
+    } else if (tp === 'commercial' || tp === 'industrial') {
+      needsPower = true;
+    }
+    if (needsPower) {
+      const hasPower = hasPowerAccess(x, y);
+      if (!hasPower) {
+        needsPowerButNoPower = true;
+      }
+    }
+  }
   if (tp==='empty') {
     if (tr==='water') ctx.fillStyle='#1e40af'; 
     else if (tr==='cliff') ctx.fillStyle='#3e2723'; 
@@ -761,7 +821,223 @@ function drTl(x,y,tp,lv,ab,w,h) {
     ctx.fillStyle='#ff0000'; ctx.fillRect(px+7,py+5,2,5); ctx.fillRect(px+5,py+6,6,2); 
     ctx.fillStyle='#4a4a4a'; ctx.fillRect(px+6,py+11,4,3); 
   }
+  else if (tp==='coal') {
+    // Background - industrial ground
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
+    ctx.fillStyle='#4a4a3a'; ctx.fillRect(px+1,py+ht-4,wd-2,3);
+    
+    // Main building - dark brown brick structure (2x2)
+    ctx.fillStyle='#5a3a2a'; ctx.fillRect(px+3,py+12,wd-6,ht-13);
+    
+    // Darker roof
+    ctx.fillStyle='#3a2a1a'; ctx.fillRect(px+3,py+12,wd-6,4);
+    
+    // Two smaller brick smoke stacks
+    ctx.fillStyle='#5a3a2a'; 
+    ctx.fillRect(px+8,py+6,2,7);
+    ctx.fillRect(px+22,py+6,2,7);
+    
+    // Stack tops/caps
+    ctx.fillStyle='#6a6a6a';
+    ctx.fillRect(px+7,py+6,4,1);
+    ctx.fillRect(px+21,py+6,4,1);
+    
+    // Animated smoke from stacks
+    const smokeAnim = (Date.now() / 300) % 4; // Animate every 300ms
+    const smokeOffset1 = Math.floor(smokeAnim);
+    const smokeOffset2 = Math.floor((smokeAnim + 2) % 4);
+    
+    // Smoke from left stack
+    ctx.fillStyle='rgba(80,80,80,0.6)'; 
+    ctx.fillRect(px+8,py+4-smokeOffset1,2,2);
+    ctx.fillStyle='rgba(100,100,100,0.4)';
+    ctx.fillRect(px+7,py+2-smokeOffset1,3,2);
+    ctx.fillStyle='rgba(120,120,120,0.2)';
+    ctx.fillRect(px+6,py+1-smokeOffset1,4,1);
+    
+    // Smoke from right stack
+    ctx.fillStyle='rgba(80,80,80,0.6)'; 
+    ctx.fillRect(px+22,py+4-smokeOffset2,2,2);
+    ctx.fillStyle='rgba(100,100,100,0.4)';
+    ctx.fillRect(px+21,py+2-smokeOffset2,3,2);
+    ctx.fillStyle='rgba(120,120,120,0.2)';
+    ctx.fillRect(px+20,py+1-smokeOffset2,4,1);
+    
+    // Windows (dark) - moved down
+    ctx.fillStyle='#2a2a2a'; 
+    ctx.fillRect(px+6,py+18,2,2);
+    ctx.fillRect(px+12,py+18,2,2);
+    ctx.fillRect(px+18,py+18,2,2);
+    ctx.fillRect(px+24,py+18,2,2);
+    ctx.fillRect(px+6,py+24,2,2);
+    ctx.fillRect(px+12,py+24,2,2);
+    ctx.fillRect(px+18,py+24,2,2);
+    ctx.fillRect(px+24,py+24,2,2);
+    
+    // Door at bottom center
+    ctx.fillStyle='#1a1a1a';
+    ctx.fillRect(px+14,py+ht-4,4,3);
+  }
+  else if (tp==='nuclear') {
+    // Background - concrete pad
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
+    ctx.fillStyle='#6a6a6a'; ctx.fillRect(px+1,py+ht-3,wd-2,2);
+    
+    // Animated steam from cooling tower (draw FIRST, behind dome)
+    const steamAnim = (Date.now() / 400) % 5;
+    const steamOffset = Math.floor(steamAnim);
+    
+    ctx.fillStyle='rgba(255,255,255,0.7)';
+    ctx.fillRect(px+14,py+6-steamOffset,6,3);
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.fillRect(px+13,py+3-steamOffset,8,3);
+    ctx.fillStyle='rgba(255,255,255,0.3)';
+    ctx.fillRect(px+12,py+1-steamOffset,10,2);
+    
+    // Large cooling tower dome (2x2) - gray (draw AFTER steam)
+    ctx.fillStyle='#8a8a8a'; 
+    ctx.beginPath(); 
+    ctx.arc(px+wd/2,py+14,9,0,Math.PI*2); 
+    ctx.fill();
+    // Shading on dome
+    ctx.fillStyle='#6a6a6a';
+    ctx.beginPath();
+    ctx.arc(px+wd/2,py+14,9,Math.PI*0.3,Math.PI*0.7);
+    ctx.fill();
+    
+    // Cooling tower base
+    ctx.fillStyle='#7a7a7a'; 
+    ctx.fillRect(px+7,py+21,wd-14,7);
+    
+    // Reactor containment building (left) - gray
+    ctx.fillStyle='#7a7a7a'; 
+    ctx.fillRect(px+2,py+18,12,10);
+    ctx.fillStyle='#6a6a6a';
+    ctx.fillRect(px+2,py+18,12,4);
+    
+    // Control building (right) - gray
+    ctx.fillStyle='#8a8a8a';
+    ctx.fillRect(px+wd-13,py+20,11,8);
+    ctx.fillStyle='#7a7a7a';
+    ctx.fillRect(px+wd-13,py+20,11,3);
+    
+    // White line accents on buildings
+    ctx.strokeStyle='#ffffff';
+    ctx.lineWidth=1;
+    // Vertical lines on reactor
+    ctx.beginPath();
+    ctx.moveTo(px+6,py+18);
+    ctx.lineTo(px+6,py+28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(px+10,py+18);
+    ctx.lineTo(px+10,py+28);
+    ctx.stroke();
+    // Horizontal line on control building
+    ctx.beginPath();
+    ctx.moveTo(px+wd-13,py+23);
+    ctx.lineTo(px+wd-2,py+23);
+    ctx.stroke();
+    
+    // Dark windows
+    ctx.fillStyle='#2a2a2a';
+    ctx.fillRect(px+4,py+22,2,2);
+    ctx.fillRect(px+8,py+22,2,2);
+    ctx.fillRect(px+wd-10,py+23,2,2);
+    ctx.fillRect(px+wd-6,py+23,2,2);
+  }
+  else if (tp==='wind') {
+    // Background - grass with service road
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
+    ctx.fillStyle='#4a4a3a'; ctx.fillRect(px+1,py+ht-3,wd-2,2);
+    
+    // Thin tall tower (1x2 building, so ht = 32)
+    ctx.fillStyle='#d0d0d0'; 
+    // Thin tower that gets slightly wider at bottom
+    ctx.fillRect(px+7,py+6,2,ht-9);
+    ctx.fillRect(px+6,py+ht-8,4,5);
+    
+    // Tower shading
+    ctx.fillStyle='#b0b0b0';
+    ctx.fillRect(px+7,py+6,1,ht-9);
+    
+    // Concrete base
+    ctx.fillStyle='#8a8a8a';
+    ctx.fillRect(px+5,py+ht-3,6,2);
+    
+    // Hub at top
+    const hubX = px+8;
+    const hubY = py+6;
+    ctx.fillStyle='#c0c0c0';
+    ctx.beginPath();
+    ctx.arc(hubX,hubY,1.5,0,Math.PI*2);
+    ctx.fill();
+    
+    // Rotating turbine blades
+    // Use Date.now() for smooth continuous animation
+    const rotationSpeed = 0.002; // Adjust for faster/slower rotation
+    const rotation = (Date.now() * rotationSpeed) % (Math.PI * 2);
+    
+    ctx.save();
+    ctx.translate(hubX, hubY);
+    ctx.rotate(rotation);
+    
+    // Three large turbine blades (white) - drawn at 120 degree intervals
+    ctx.fillStyle='#ffffff';
+    ctx.strokeStyle='#b0b0b0';
+    ctx.lineWidth=0.8;
+    
+    for (let i=0; i<3; i++) {
+      ctx.save();
+      ctx.rotate((i * Math.PI * 2 / 3));
+      // Blade pointing upward
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-1, -6);
+      ctx.lineTo(1, -6);
+      ctx.lineTo(0, 0);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+    
+    ctx.restore();
+    
+    // Redraw hub on top of blades
+    ctx.fillStyle='#c0c0c0';
+    ctx.beginPath();
+    ctx.arc(hubX,hubY,1.5,0,Math.PI*2);
+    ctx.fill();
+  }
   ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=0.5; ctx.strokeRect(px,py,wd,ht);
+  
+  // Draw power warning indicator if building needs power but doesn't have it
+  if (needsPowerButNoPower && !ab) {
+    // Flash effect - show bolt every other half-second
+    const flashOn = Math.floor(Date.now() / 500) % 2 === 0;
+    if (flashOn) {
+      ctx.save();
+      // Draw a yellow lightning bolt in the top-right corner
+      const indicatorSize = 10;
+      const indicatorX = px + wd - indicatorSize - 1;
+      const indicatorY = py + 1;
+      
+      // Draw yellow lightning bolt
+      ctx.fillStyle = '#ffff00';
+      ctx.beginPath();
+      // Lightning bolt shape
+      ctx.moveTo(indicatorX + indicatorSize/2 + 2, indicatorY);
+      ctx.lineTo(indicatorX + indicatorSize/2 - 2, indicatorY + indicatorSize/2);
+      ctx.lineTo(indicatorX + indicatorSize/2 + 1, indicatorY + indicatorSize/2);
+      ctx.lineTo(indicatorX + indicatorSize/2 - 3, indicatorY + indicatorSize);
+      ctx.lineTo(indicatorX + indicatorSize/2 + 2, indicatorY + indicatorSize/2 + 2);
+      ctx.lineTo(indicatorX + indicatorSize/2 - 1, indicatorY + indicatorSize/2 + 2);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.restore();
+    }
+  }
 }
 
 function drGr() {
@@ -773,6 +1049,73 @@ function drGr() {
   }
   if (showLandValueOverlay) drawLandValueOverlay();
   if (showCrimeOverlay) drawCrimeOverlay();
+  
+  // Draw placement preview when hovering
+  if (hoverPos && st.selectedTool && st.selectedTool !== 'bulldoze' && !showLandValueOverlay && !showCrimeOverlay) {
+    const x = hoverPos.x, y = hoverPos.y;
+    if (x >= 0 && x < GR_SZ && y >= 0 && y < GR_SZ) {
+      // Determine building size
+      let bw = 1, bh = 1;
+      if (st.selectedTool === 'coal' || st.selectedTool === 'nuclear') {
+        bw = 2; bh = 2;
+      } else if (st.selectedTool === 'wind') {
+        bw = 1; bh = 2;
+      }
+      
+      // Check if placement is valid
+      let valid = true;
+      const c = st.grid[y][x];
+      const tr = st.terrain[y][x];
+      if (tr === 'water' || tr === 'cliff') valid = false;
+      
+      if (bw > 1 || bh > 1) {
+        for (let dy=0; dy<bh; dy++) {
+          for (let dx=0; dx<bw; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= GR_SZ || ny >= GR_SZ) { valid = false; break; }
+            const nc = st.grid[ny][nx];
+            const ntr = st.terrain[ny][nx];
+            if (ntr === 'water' || ntr === 'cliff') { valid = false; break; }
+            const isPk = st.selectedTool.startsWith('park');
+            const isZone = nc.type === 'residential' || nc.type === 'commercial' || nc.type === 'industrial';
+            const isEmptyZone = isZone && (nc.level === 0 || nc.abandoned);
+            if (isPk) {
+              if (nc.type !== 'empty' && !isEmptyZone) { valid = false; break; }
+            } else {
+              if (nc.type !== 'empty' && !nc.abandoned) { valid = false; break; }
+            }
+          }
+          if (!valid) break;
+        }
+      } else {
+        const isPk = st.selectedTool.startsWith('park');
+        const isZone = c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial';
+        const isEmptyZone = isZone && (c.level === 0 || c.abandoned);
+        if (isPk) {
+          if (c.type !== 'empty' && !isEmptyZone) valid = false;
+        } else {
+          if (c.type !== 'empty' && !c.abandoned) valid = false;
+        }
+      }
+      
+      // Draw semi-transparent preview
+      if (valid) {
+        ctx.save();
+        const px = x * CL_SZ, py = y * CL_SZ, wd = bw * CL_SZ, ht = bh * CL_SZ;
+        
+        // Draw the actual tile design semi-transparently
+        ctx.globalAlpha = 0.8;
+        drTl(x, y, st.selectedTool, 0, false, bw, bh);
+        ctx.globalAlpha = 1.0;
+        
+        // Draw semi-transparent white border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px, py, wd, ht);
+        ctx.restore();
+      }
+    }
+  }
   
   // Draw highlighted building border
   if (highlightedBuilding) {
@@ -1923,6 +2266,32 @@ function updUI() {
   document.getElementById('population').textContent=st.population.toLocaleString();
   document.getElementById('money').textContent=`${(st.money/1000).toFixed(0)}k`;
   document.getElementById('happiness').textContent=st.happiness;
+  
+  // Calculate and update power status
+  let totalPowerGeneration = 0, totalPowerConsumption = 0;
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const c = st.grid[y][x];
+      if (c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind') {
+        totalPowerGeneration += POWER_GENERATION[c.type] || 0;
+      }
+      if (c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') {
+        const level = c.level || 0;
+        totalPowerConsumption += getPowerConsumption(c.type, level);
+      }
+    }
+  }
+  const powerEl = document.getElementById('power');
+  powerEl.textContent = `${totalPowerGeneration}/${totalPowerConsumption}`;
+  const powerSurplus = totalPowerGeneration - totalPowerConsumption;
+  if (powerSurplus < 0) {
+    powerEl.classList.remove('text-white', 'text-green-400', 'text-yellow-400');
+    powerEl.classList.add('text-red-400');
+  } else {
+    powerEl.classList.remove('text-red-400', 'text-green-400', 'text-yellow-400');
+    powerEl.classList.add('text-white');
+  }
+  
   if (!edtNm) {
     const month = (st.tickCount % 12) + 1;
     const monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -2118,9 +2487,13 @@ function plcTl(x,y) {
       if (c.type==='road') {
         st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
         normalizeEmptyCell(x,y);
+        calculatePowerGrid(); // Recalculate power grid when roads are removed
         drGr(); sv();
         return;
       }
+      
+      // Check if removing a power plant
+      const wasPowerPlant = c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind';
 
       const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
       const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
@@ -2145,6 +2518,11 @@ function plcTl(x,y) {
         // All other buildings: only bulldoze the clicked cell
         st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
         normalizeEmptyCell(x,y);
+      }
+      
+      // Recalculate power grid if a power plant was removed
+      if (wasPowerPlant) {
+        calculatePowerGrid();
       }
 
       drGr(); sv();
@@ -2189,18 +2567,60 @@ function plcTl(x,y) {
     }
   } else {
     // For non-park tools: only allow empty or abandoned
-    if (c.type!=='empty' && !c.abandoned) return;
+    // Determine building size
+    let bw = 1, bh = 1;
+    if (st.selectedTool === 'coal' || st.selectedTool === 'nuclear') {
+      bw = 2; bh = 2; // 2x2 for coal and nuclear
+    } else if (st.selectedTool === 'wind') {
+      bw = 1; bh = 2; // 1x2 for wind
+    }
+    
+    // Check if we can place a multi-tile building
+    if (bw > 1 || bh > 1) {
+      // Check all cells are empty or abandoned
+      let canPlace = true;
+      for (let dy=0; dy<bh; dy++) {
+        for (let dx=0; dx<bw; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= GR_SZ || ny >= GR_SZ) { canPlace = false; break; }
+          const nc = st.grid[ny][nx];
+          const ntr = st.terrain[ny][nx];
+          if (ntr === 'water' || ntr === 'cliff') { canPlace = false; break; }
+          if (nc.type !== 'empty' && !nc.abandoned) { canPlace = false; break; }
+        }
+        if (!canPlace) break;
+      }
+      if (!canPlace) { plySnd('error'); return; }
+    } else {
+      if (c.type!=='empty' && !c.abandoned) return;
+    }
+    
     const cs=COSTS[st.selectedTool]||0; 
     if (st.money<cs) { plySnd('error'); return; }
     plySnd('place'); 
     st.money-=cs;
     const buildingId = nextBuildingId++;
-    st.grid[y][x]={type:st.selectedTool,age:0,level:0,w:1,h:1,buildingId:buildingId};
+    
+    // Place the building across all its cells
+    for (let dy=0; dy<bh; dy++) {
+      for (let dx=0; dx<bw; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < GR_SZ && ny < GR_SZ) {
+          st.grid[ny][nx]={type:st.selectedTool,age:0,level:0,w:bw,h:bh,buildingId:buildingId};
+        }
+      }
+    }
+    
+    // Recalculate power grid if a power plant or road was placed
+    if (st.selectedTool === 'coal' || st.selectedTool === 'nuclear' || st.selectedTool === 'wind' || st.selectedTool === 'road') {
+      calculatePowerGrid();
+    }
   }
   drGr(); updUI(); sv();
 }
 
 let isDragging = false, dragStart = null, lastPlaced = null, isScrolling = false, touchStartPos = null, lastTouchPos = null;
+let hoverPos = null; // Track hover position for placement preview
 
 function getCarSpeedMultiplier() {
   if (st.speed<=0) return 0;
@@ -2432,7 +2852,20 @@ function handleDragEnd(e) {
 cvs.addEventListener('mousedown', handleDragStart);
 cvs.addEventListener('mousemove', handleDragMove);
 cvs.addEventListener('mouseup', handleDragEnd);
-cvs.addEventListener('mouseleave', handleDragEnd);
+cvs.addEventListener('mouseleave', (e) => {
+  hoverPos = null;
+  handleDragEnd(e);
+});
+
+// Track hover for placement preview
+cvs.addEventListener('mousemove', (e) => {
+  if (!isDragging && st.selectedTool && st.selectedTool !== 'bulldoze') {
+    const pos = getCanvasPos(e);
+    hoverPos = pos;
+  } else {
+    hoverPos = null;
+  }
+});
 
 // Touch events - passive for smooth scrolling on mobile
 cvs.addEventListener('touchstart', handleDragStart, { passive: true });
@@ -2465,6 +2898,17 @@ const submenuItems = {
     { tool: 'park2', icon: '🌸', tooltip: 'park', shortcut: '2' },
     { tool: 'park3', icon: '🌲', tooltip: 'park', shortcut: '3' },
     { tool: 'park4', icon: '🌻', tooltip: 'park', shortcut: '4' }
+  ],
+  institution: [
+    { tool: 'police', icon: '🚓', tooltip: 'police station', shortcut: '1' },
+    { tool: 'fire', icon: '🚒', tooltip: 'fire station', shortcut: '2' },
+    { tool: 'school', icon: '🏫', tooltip: 'school', shortcut: '3' },
+    { tool: 'hospital', icon: '🏥', tooltip: 'hospital', shortcut: '4' }
+  ],
+  power: [
+    { tool: 'coal', icon: '⚡', tooltip: 'coal plant', shortcut: '1' },
+    { tool: 'nuclear', icon: '☢️', tooltip: 'nuclear plant', shortcut: '2' },
+    { tool: 'wind', icon: '💨', tooltip: 'wind plant', shortcut: '3' }
   ],
   disaster: [
     { disaster: 'fire', icon: '🔥', tooltip: 'fire', shortcut: '1' },
@@ -2655,14 +3099,10 @@ const keyToTool = {
   'I': 'industrial',
   'p': 'park',
   'P': 'park',
-  'o': 'police',
-  'O': 'police',
-  'f': 'fire',
-  'F': 'fire',
-  's': 'school',
-  'S': 'school',
-  't': 'hospital',
-  'T': 'hospital',
+  's': 'institution',
+  'S': 'institution',
+  'e': 'power',
+  'E': 'power',
   'd': 'bulldoze',
   'D': 'bulldoze',
   'w': 'disaster',
@@ -2691,6 +3131,26 @@ function triggerToolByKey(key) {
         closeSubmenu();
       } else {
         openSubmenu(parkBtn, 'park');
+      }
+      return true;
+    }
+  } else if (tool === 'institution') {
+    const institutionBtn = document.querySelector('[data-submenu="institution"]');
+    if (institutionBtn) {
+      if (activeSubmenu && activeSubmenu.button === institutionBtn) {
+        closeSubmenu();
+      } else {
+        openSubmenu(institutionBtn, 'institution');
+      }
+      return true;
+    }
+  } else if (tool === 'power') {
+    const powerBtn = document.querySelector('[data-submenu="power"]');
+    if (powerBtn) {
+      if (activeSubmenu && activeSubmenu.button === powerBtn) {
+        closeSubmenu();
+      } else {
+        openSubmenu(powerBtn, 'power');
       }
       return true;
     }
@@ -2723,6 +3183,26 @@ function handleSubmenuShortcut(key) {
     const parkTool = shortcuts[key];
     if (parkTool) {
       const subBtn = document.querySelector(`[data-tool="${parkTool}"]`);
+      if (subBtn) {
+        subBtn.click();
+        return true;
+      }
+    }
+  } else if (activeSubmenu.submenuKey === 'institution') {
+    const shortcuts = { '1': 'police', '2': 'fire', '3': 'school', '4': 'hospital' };
+    const institutionTool = shortcuts[key];
+    if (institutionTool) {
+      const subBtn = document.querySelector(`[data-tool="${institutionTool}"]`);
+      if (subBtn) {
+        subBtn.click();
+        return true;
+      }
+    }
+  } else if (activeSubmenu.submenuKey === 'power') {
+    const shortcuts = { '1': 'coal', '2': 'nuclear', '3': 'wind' };
+    const powerTool = shortcuts[key];
+    if (powerTool) {
+      const subBtn = document.querySelector(`[data-tool="${powerTool}"]`);
       if (subBtn) {
         subBtn.click();
         return true;
@@ -2977,7 +3457,7 @@ function getStatsContent(infoType) {
     title = 'RCI Demand';
     content = `<div class="flex flex-wrap gap-6 py-2">${statItem('residential', `${st.rDemand}%`, 'text-green-500')}${statItem('commercial', `${st.cDemand}%`, 'text-blue-500')}${statItem('industrial', `${st.iDemand}%`, 'text-yellow-500')}</div><div class="mt-3 text-xs text-neutral-400">Higher demand means more zones needed</div>`;
   } else if (infoType === 'pop') {
-    title = 'Population Stats';
+    title = 'Population';
     const bPR=10; let popL1=0, popL2=0, popL3=0;
     for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
       const c=st.grid[y][x];
@@ -2989,6 +3469,81 @@ function getStatsContent(infoType) {
       }
     }
     content = `<div class="flex flex-wrap gap-6 py-2">${statItem('total', st.population.toLocaleString())}${statItem('zones', cnts.residential||0)}${statItem('employment', `${st.employment}%`)}${statItem('L1', popL1.toLocaleString())}${statItem('L2', popL2.toLocaleString())}${statItem('L3', popL3.toLocaleString())}</div><div class="mt-3 text-xs text-neutral-400">Build more residential zones to grow, levels upgrade with parks, services, and education</div>`;
+  } else if (infoType === 'power') {
+    title = 'Power';
+    // Calculate power stats
+    let totalPowerGeneration = 0, totalPowerConsumption = 0;
+    let coalGen = 0, nuclearGen = 0, windGen = 0;
+    let coalCount = 0, nuclearCount = 0, windCount = 0;
+    let residentialConsumption = 0, commercialConsumption = 0, industrialConsumption = 0;
+    
+    // Track processed power plants to count buildings, not tiles (using buildingId only)
+    const processedPowerPlants = new Set();
+    
+    for (let y=0; y<GR_SZ; y++) {
+      for (let x=0; x<GR_SZ; x++) {
+        const c = st.grid[y][x];
+        
+        // Count power plants by buildingId only
+        if ((c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind') && c.buildingId) {
+          if (!processedPowerPlants.has(c.buildingId)) {
+            processedPowerPlants.add(c.buildingId);
+            if (c.type === 'coal') {
+              coalGen += POWER_GENERATION.coal;
+              coalCount++;
+              totalPowerGeneration += POWER_GENERATION.coal;
+            } else if (c.type === 'nuclear') {
+              nuclearGen += POWER_GENERATION.nuclear;
+              nuclearCount++;
+              totalPowerGeneration += POWER_GENERATION.nuclear;
+            } else if (c.type === 'wind') {
+              windGen += POWER_GENERATION.wind;
+              windCount++;
+              totalPowerGeneration += POWER_GENERATION.wind;
+            }
+          }
+        }
+        
+        if (c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') {
+          const level = c.level || 0;
+          const consumption = getPowerConsumption(c.type, level);
+          totalPowerConsumption += consumption;
+          if (c.type === 'residential') residentialConsumption += consumption;
+          else if (c.type === 'commercial') commercialConsumption += consumption;
+          else if (c.type === 'industrial') industrialConsumption += consumption;
+        }
+      }
+    }
+    const powerSurplus = totalPowerGeneration - totalPowerConsumption;
+    const powerColor = powerSurplus >= 0 ? 'text-green-500' : 'text-red-500';
+    const surplusDisplay = powerSurplus >= 0 ? `+${powerSurplus}` : powerSurplus.toString();
+    
+    content = `<div class="flex flex-wrap gap-6 py-2">
+      ${statItem('generation', `+${totalPowerGeneration}`, 'text-green-500')}
+      ${statItem('consumption', `-${totalPowerConsumption}`, 'text-red-500')}
+      ${statItem('surplus', surplusDisplay, powerColor)}
+    </div>
+    <div class="mt-4 space-y-3">
+      <div>
+        <div class="text-xs text-neutral-300 mb-1">Power Plants</div>
+        <div class="flex flex-wrap gap-6 py-2">
+          ${coalCount > 0 ? statItem('Coal', `+${coalGen} (${coalCount})`, '') : ''}
+          ${nuclearCount > 0 ? statItem('Nuclear', `+${nuclearGen} (${nuclearCount})`, '') : ''}
+          ${windCount > 0 ? statItem('Wind', `+${windGen} (${windCount})`, '') : ''}
+          ${coalCount === 0 && nuclearCount === 0 && windCount === 0 ? '<div class="text-xs text-neutral-500">No power plants built</div>' : ''}
+        </div>
+      </div>
+      <div>
+        <div class="text-xs text-neutral-300 mb-1">Consumption Breakdown</div>
+        <div class="flex flex-wrap gap-6 py-2">
+          ${residentialConsumption > 0 ? statItem('Residential', `-${residentialConsumption}`, 'text-green-500') : ''}
+          ${commercialConsumption > 0 ? statItem('Commercial', `-${commercialConsumption}`, 'text-blue-500') : ''}
+          ${industrialConsumption > 0 ? statItem('Industrial', `-${industrialConsumption}`, 'text-yellow-500') : ''}
+          ${totalPowerConsumption === 0 ? '<div class="text-xs text-neutral-500">No buildings consuming power</div>' : ''}
+        </div>
+      </div>
+    </div>
+    <div class="mt-3 text-xs text-neutral-400">Power flows via roads from power plants. L2+L3 residential, all commercial and industrial require power.</div>`;
   } else if (infoType === 'money') {
     title = 'Budget';
     // Calculate income breakdown (same logic as simTk)
@@ -3095,7 +3650,7 @@ function getStatsContent(infoType) {
     content = `<div class="flex flex-wrap gap-6 py-2">${statItem('balance', `$${st.money.toLocaleString()}`)}${statItem('income/mo', netIncome>=0?`+$${netIncome.toLocaleString()}`:`-$${Math.abs(netIncome).toLocaleString()}`, netIncome>=0?'text-green-500':'text-red-400')}${statItem('expenses/mo', `-$${totalMaintenance.toLocaleString()}`, 'text-red-400')}</div>
       <div class="mt-4 space-y-3">
         <div>
-          <div class="text-xs text-green-400 mb-1">Income Sources</div>
+          <div class="text-xs text-neutral-300 mb-1">Income Sources</div>
           <div class="flex flex-wrap gap-6 py-2">
             ${statItem('Residential Tax', `$${Math.floor(residentialIncome*taxMultiplier).toLocaleString()}`, 'text-green-400')}
             ${statItem('Commercial', `$${Math.floor(commercialRevenue*taxMultiplier).toLocaleString()}`, 'text-blue-400')}
@@ -3104,7 +3659,7 @@ function getStatsContent(infoType) {
           </div>
         </div>
         <div>
-          <div class="text-xs text-red-400 mb-1">Expenses Breakdown</div>
+          <div class="text-xs text-neutral-300 mb-1">Expenses Breakdown</div>
           <div class="flex flex-wrap gap-6 py-2">
             ${statItem('Buildings', `-$${buildingMaintenance.toLocaleString()}`, 'text-red-400')}
             ${infrastructureCost > 0 ? statItem('Infrastructure', `-$${infrastructureCost.toLocaleString()}`, 'text-red-400') : ''}
@@ -3156,6 +3711,11 @@ document.getElementById('happyBtn').addEventListener('click', () => {
   shwInfo(title, content, 'happy');
 });
 
+document.getElementById('powerBtn').addEventListener('click', () => {
+  const { title, content } = getStatsContent('power');
+  shwInfo(title, content, 'power');
+});
+
 function updateStatsPanel() {
   if (!currentInfoType) return;
   const pnl = document.getElementById('infoPanel');
@@ -3164,7 +3724,7 @@ function updateStatsPanel() {
   const { title, content } = getStatsContent(currentInfoType);
   
   if (title && content) {
-    document.getElementById('infoTitle').textContent = title;
+    document.getElementById('infoTitle').innerHTML = title;
     document.getElementById('infoContent').innerHTML = content;
   }
 }
@@ -3177,6 +3737,125 @@ function hasRdAcc(x,y) {
       if (ndx===0 && ndy===0) continue;
       const nx=cx+ndx, ny=cy+ndy;
       if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) if (st.grid[ny][nx].type==='road') return true;
+    }
+  }
+  return false;
+}
+
+function calculatePowerGrid() {
+  // Initialize power grid
+  if (!st.powerGrid || st.powerGrid.length !== GR_SZ) {
+    st.powerGrid = [];
+    for (let y=0; y<GR_SZ; y++) {
+      const row = [];
+      for (let x=0; x<GR_SZ; x++) row.push(false);
+      st.powerGrid.push(row);
+    }
+  } else {
+    // Reset power grid
+    for (let y=0; y<GR_SZ; y++) {
+      for (let x=0; x<GR_SZ; x++) {
+        st.powerGrid[y][x] = false;
+      }
+    }
+  }
+  
+  // Find all power plants
+  const powerPlants = [];
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const cell = st.grid[y][x];
+      if (cell.type === 'coal' || cell.type === 'nuclear' || cell.type === 'wind') {
+        powerPlants.push({x, y});
+      }
+    }
+  }
+  
+  if (powerPlants.length === 0) return;
+  
+  // BFS from each power plant along roads
+  const visited = new Set();
+  const queue = [];
+  
+  // Start BFS from each power plant's adjacent road tiles
+  for (const plant of powerPlants) {
+    // Check adjacent tiles for roads
+    for (let dy=-1; dy<=1; dy++) {
+      for (let dx=-1; dx<=1; dx++) {
+        if (dx===0 && dy===0) continue;
+        const nx = plant.x + dx, ny = plant.y + dy;
+        if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+          if (st.grid[ny][nx].type === 'road') {
+            const key = `${nx},${ny}`;
+            if (!visited.has(key)) {
+              visited.add(key);
+              queue.push({x: nx, y: ny});
+              st.powerGrid[ny][nx] = true;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // BFS along road network
+  while (queue.length > 0) {
+    const current = queue.shift();
+    
+    // Check all 4 directions (up, down, left, right)
+    const directions = [[0,-1], [0,1], [-1,0], [1,0]];
+    for (const [dx, dy] of directions) {
+      const nx = current.x + dx, ny = current.y + dy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+        const key = `${nx},${ny}`;
+        if (!visited.has(key) && st.grid[ny][nx].type === 'road') {
+          visited.add(key);
+          queue.push({x: nx, y: ny});
+          st.powerGrid[ny][nx] = true;
+        }
+      }
+    }
+  }
+  
+  // Mark all tiles adjacent to powered roads as powered
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      if (st.powerGrid[y][x]) {
+        // Check adjacent tiles (including diagonals)
+        for (let dy=-1; dy<=1; dy++) {
+          for (let dx=-1; dx<=1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+              if (!st.powerGrid[ny][nx]) {
+                st.powerGrid[ny][nx] = true;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function hasPowerAccess(x,y) {
+  // Check if building at (x,y) has power access
+  // Power flows via roads, so check if any adjacent tile is powered
+  const w=st.grid[y][x].w||1, h=st.grid[y][x].h||1;
+  if (!st.powerGrid || st.powerGrid.length !== GR_SZ) return false;
+  
+  for (let dy=0; dy<h; dy++) {
+    for (let dx=0; dx<w; dx++) {
+      const cx=x+dx, cy=y+dy;
+      // Check adjacent tiles (including diagonals)
+      for (let ndy=-1; ndy<=1; ndy++) {
+        for (let ndx=-1; ndx<=1; ndx++) {
+          if (ndx===0 && ndy===0) continue;
+          const nx=cx+ndx, ny=cy+ndy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            if (st.powerGrid[ny][nx]) return true;
+          }
+        }
+      }
     }
   }
   return false;
@@ -3213,6 +3892,7 @@ function calcLV(x,y) {
       const d=Math.abs(dx)+Math.abs(dy), c=st.grid[ny][nx];
       if (c.type.startsWith('park')) { const m=(c.w||1)*(c.h||1); const sizeBoost=m>1?1.5:1; pk+=(7-d)*2*m*sizeBoost; }
       else if (c.type==='industrial') { const m=(c.w||1)*(c.h||1); pl+=(7-d)*2*m; }
+      else if (c.type==='coal') { const m=(c.w||1)*(c.h||1); pl+=(7-d)*3*m; } // Coal plants pollute more than industrial
       else if (c.type==='police'||c.type==='fire'||c.type==='school'||c.type==='hospital') sv+=(7-d);
     }
   }
@@ -3795,6 +4475,8 @@ function simTk() {
     // Clean up old event messages and AI news every year
     cleanupNewsEvents();
   }
+  // Recalculate power grid each tick
+  calculatePowerGrid();
   let rC=0, cC=0, iC=0, pC=0, poC=0, fC=0, sC=0, hC=0, rdC=0; const cntd={};
   for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
     const k=`${x},${y}`; if (cntd[k]) continue;
@@ -3817,8 +4499,11 @@ function simTk() {
       }
     }
     if (c.type==='residential') rC++; else if (c.type==='commercial') cC++; else if (c.type==='industrial') iC++;
-    else if (c.type.startsWith('park')) pC++; else if (c.type==='police') poC++; else if (c.type==='fire') fC++;
+    else if (c.type.startsWith('park')) pC++;     else if (c.type==='police') poC++; else if (c.type==='fire') fC++;
     else if (c.type==='school') sC++; else if (c.type==='hospital') hC++; else if (c.type==='road') rdC++;
+    else if (c.type==='coal' || c.type==='nuclear' || c.type==='wind') {
+      // Count power plants (for stats)
+    }
   }
   updLV();
   updCrime();
@@ -3870,6 +4555,17 @@ function simTk() {
       }
       
       const lv=st.landValue[y][x], hr=hasRdAcc(x,y), mv=c.type==='industrial'?10:20;
+      const level = c.level || 0;
+      
+      // Check power requirements
+      let needsPower = false;
+      if (c.type === 'residential' && (level === 2 || level === 3)) {
+        needsPower = true;
+      } else if (c.type === 'commercial' || c.type === 'industrial') {
+        needsPower = true;
+      }
+      
+      const hasPower = hasPowerAccess(x, y);
       
       // Track ticks without road access
       if (!hr) {
@@ -3878,8 +4574,15 @@ function simTk() {
         c.ticksNoRoad = 0;
       }
       
-      // Immediate abandonment if land value too low
-      if (lv<mv) { 
+      // Track ticks without power (if building needs it)
+      if (needsPower && !hasPower) {
+        c.ticksNoPower = (c.ticksNoPower || 0) + 1;
+      } else {
+        c.ticksNoPower = 0;
+      }
+      
+      // Immediate abandonment if land value too low OR no power for extended period (15 ticks)
+      if (lv<mv || (needsPower && !hasPower && c.ticksNoPower > 15)) { 
         c.abandoned=true;
         // Keep level but mark as abandoned - don't set to 0
         // Update all cells of merged building
@@ -3934,43 +4637,81 @@ function simTk() {
         
         // Check for downgrades first (more important)
         let downgraded = false;
-        if (lv<30 && c.level>1) { 
-          const newLevel = Math.max(1,c.level-1);
-          c.level = newLevel;
-          downgraded = true;
-          // Update all cells of merged building
-          for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
-            if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=newLevel;
+        
+        // Downgrade if no power and building needs it (after 5 ticks)
+        if (needsPower && !hasPower && c.ticksNoPower > 5 && c.level > 0) {
+          // For residential: downgrade L3->L2, L2->L1 (but L1 doesn't need power so stop there)
+          // For commercial/industrial: downgrade by 1 level
+          if (c.type === 'residential' && c.level >= 2) {
+            const newLevel = c.level - 1;
+            c.level = newLevel;
+            downgraded = true;
+            c.ticksNoPower = 0;
+            for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+              if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=newLevel;
+            }
+          } else if ((c.type === 'commercial' || c.type === 'industrial') && c.level > 1) {
+            const newLevel = c.level - 1;
+            c.level = newLevel;
+            downgraded = true;
+            c.ticksNoPower = 0;
+            for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+              if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=newLevel;
+            }
           }
         }
-        // Level 3 downgrades: need land value >= 40 AND school coverage (same criteria as upgrade)
-        else if (c.level===3 && (lv<40 || !hasSchoolCoverage(x,y))) { 
-          c.level=2; 
-          downgraded = true;
-          // Update all cells of merged building
-          for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
-            if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=2;
+        
+        if (!downgraded) {
+          if (lv<30 && c.level>1) { 
+            const newLevel = Math.max(1,c.level-1);
+            c.level = newLevel;
+            downgraded = true;
+            // Update all cells of merged building
+            for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+              if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=newLevel;
+            }
+          }
+          // Level 3 downgrades: need land value >= 40 AND school coverage (same criteria as upgrade)
+          else if (c.level===3 && (lv<40 || !hasSchoolCoverage(x,y))) { 
+            c.level=2; 
+            downgraded = true;
+            // Update all cells of merged building
+            for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+              if (x+dx<GR_SZ && y+dy<GR_SZ) st.grid[y+dy][x+dx].level=2;
+            }
           }
         }
         
           // Upgrade logic - only if not downgraded, gradual one level at a time
           // Slowed down upgrades: require more age and better conditions
+          // Also require power if building needs it
           if (!downgraded) {
             let upgraded = false;
             // Level 0 -> 1: needs age > 10 ticks (was 5)
             if (c.level===0 && c.age>10) {
-              c.level=1;
-              upgraded = true;
+              // Check if level 1 would need power
+              const wouldNeedPower = (c.type === 'commercial' || c.type === 'industrial');
+              if (!wouldNeedPower || hasPower) {
+                c.level=1;
+                upgraded = true;
+              }
             }
             // Level 1 -> 2: needs age > 30 AND land value > 55 (was 15 and 50)
+            // For residential: also needs power (L2 requires power)
+            // For commercial/industrial: also needs power
             else if (c.level===1 && c.age>30 && lv>55) {
-              c.level=2;
-              upgraded = true;
+              if (hasPower) {
+                c.level=2;
+                upgraded = true;
+              }
             }
             // Level 2 -> 3: needs age > 50 AND land value >= 40 AND school coverage
+            // Also needs power (L3 requires power for residential, commercial, industrial)
             else if (c.level===2 && c.age>50 && lv>=40 && hasSchoolCoverage(x,y)) {
-              c.level=3;
-              upgraded = true;
+              if (hasPower) {
+                c.level=3;
+                upgraded = true;
+              }
             }
           
           // Update all cells of merged building if upgraded
