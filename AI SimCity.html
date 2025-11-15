@@ -1339,64 +1339,84 @@ function drGr() {
   }
   
   st.fires.forEach(f => {
-    if (f.age<20) {
+    if (f.age < 20) {
       const fx = f.x * CL_SZ;
       const fy = f.y * CL_SZ;
-      const anim = f.age % 6;
-      
+
+      // Time-based animation for smooth flicker and wobble
+      const t = Date.now() / 160 + (f.x * 0.7 + f.y * 0.3);
+      const wobble = Math.sin(t) * 1.5;
+      const heightPulse = 1 + Math.sin(t * 1.7) * 0.6;
+
+      // Base positions (slightly offset down on Y)
+      const yOffset = 1; // move flame a bit lower in the tile
+      const baseY = fy + 14 + yOffset;
+      const centerX = fx + 8;
+
       ctx.save();
-      // Draw multiple flame shapes for a more fire-like appearance
-      // Base flame (orange/red)
-      ctx.fillStyle = anim < 3 ? '#ff4500' : '#ff6600';
+
+      // --- Outer glow (soft red/orange halo) ---
+      ctx.fillStyle = 'rgba(255, 80, 0, 0.25)';
       ctx.beginPath();
-      ctx.moveTo(fx + 4, fy + 14);
-      ctx.lineTo(fx + 6, fy + 10);
-      ctx.lineTo(fx + 5, fy + 8);
-      ctx.lineTo(fx + 7, fy + 6);
-      ctx.lineTo(fx + 6, fy + 4);
-      ctx.lineTo(fx + 8, fy + 2);
-      ctx.lineTo(fx + 10, fy + 4);
-      ctx.lineTo(fx + 9, fy + 6);
-      ctx.lineTo(fx + 11, fy + 8);
-      ctx.lineTo(fx + 10, fy + 10);
-      ctx.lineTo(fx + 12, fy + 14);
+      ctx.ellipse(centerX, fy + 9 + yOffset, 7 + Math.abs(wobble), 7 * heightPulse, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // --- Base flame (deep orange) ---
+      ctx.fillStyle = '#ff4b1f';
+      ctx.beginPath();
+      ctx.moveTo(centerX - (4 + wobble), baseY);
+      ctx.lineTo(centerX - 2.5, fy + 10 + yOffset);
+      ctx.lineTo(centerX - 3, fy + 8 + yOffset);
+      ctx.lineTo(centerX - 0.5 + wobble, fy + yOffset + 5 * heightPulse);
+      ctx.lineTo(centerX, fy + yOffset + 3 * heightPulse);
+      ctx.lineTo(centerX + 0.5 + wobble, fy + yOffset + 5 * heightPulse);
+      ctx.lineTo(centerX + 3, fy + 8 + yOffset);
+      ctx.lineTo(centerX + 2.5, fy + 10 + yOffset);
+      ctx.lineTo(centerX + (4 - wobble), baseY);
       ctx.closePath();
       ctx.fill();
-      
-      // Middle flame (yellow/orange)
-      ctx.fillStyle = anim < 3 ? '#ff8800' : '#ffaa00';
+
+      // --- Mid flame (bright orange/yellow, slightly narrower) ---
+      const midPhase = (Math.sin(t * 1.3) + 1) / 2; // 0..1
+      const midColor = midPhase < 0.5 ? '#ffb347' : '#ffd166';
+      ctx.fillStyle = midColor;
       ctx.beginPath();
-      ctx.moveTo(fx + 5, fy + 12);
-      ctx.lineTo(fx + 6.5, fy + 9);
-      ctx.lineTo(fx + 6, fy + 7);
-      ctx.lineTo(fx + 7.5, fy + 5);
-      ctx.lineTo(fx + 7, fy + 3);
-      ctx.lineTo(fx + 9, fy + 3);
-      ctx.lineTo(fx + 8.5, fy + 5);
-      ctx.lineTo(fx + 10, fy + 7);
-      ctx.lineTo(fx + 9.5, fy + 9);
-      ctx.lineTo(fx + 11, fy + 12);
+      ctx.moveTo(centerX - 2.5, baseY - 2);
+      ctx.lineTo(centerX - 1.5, fy + 10 + yOffset);
+      ctx.lineTo(centerX - 1, fy + 8 + yOffset);
+      ctx.lineTo(centerX, fy + yOffset + 5 * heightPulse - 1);
+      ctx.lineTo(centerX + 1, fy + 8 + yOffset);
+      ctx.lineTo(centerX + 1.5, fy + 10 + yOffset);
+      ctx.lineTo(centerX + 2.5, baseY - 2);
       ctx.closePath();
       ctx.fill();
-      
-      // Top flame (yellow/white)
-      ctx.fillStyle = anim < 2 ? '#ffd700' : (anim < 4 ? '#ffff00' : '#ffaa00');
+
+      // --- Inner flame (white/hot core, animated height) ---
+      const innerHeight = 4 * heightPulse;
+      ctx.fillStyle = '#fff8c6';
       ctx.beginPath();
-      ctx.moveTo(fx + 7, fy + 10);
-      ctx.lineTo(fx + 7.5, fy + 7);
-      ctx.lineTo(fx + 7.2, fy + 5);
-      ctx.lineTo(fx + 8, fy + 3);
-      ctx.lineTo(fx + 8.8, fy + 5);
-      ctx.lineTo(fx + 8.5, fy + 7);
-      ctx.lineTo(fx + 9, fy + 10);
+      ctx.moveTo(centerX - 0.8, baseY - 2);
+      ctx.lineTo(centerX - 0.6, fy + 10 + yOffset);
+      ctx.lineTo(centerX, fy + 10 + yOffset - innerHeight);
+      ctx.lineTo(centerX + 0.6, fy + 10 + yOffset);
+      ctx.lineTo(centerX + 0.8, baseY - 2);
       ctx.closePath();
       ctx.fill();
-      
-      // Small sparks/flickers
-      ctx.fillStyle = '#ffff00';
-      ctx.fillRect(fx + 6 + (anim % 3), fy + 4, 1, 1);
-      ctx.fillRect(fx + 9 - (anim % 2), fy + 5, 1, 1);
-      
+
+      // --- Small sparks/flickers above the flame ---
+      const sparkPhase = (Math.floor(t / 4) % 3);
+      ctx.fillStyle = '#ffff66';
+      if (sparkPhase === 0) {
+        ctx.fillRect(centerX - 2, fy + 3 + yOffset, 1, 1);
+        ctx.fillRect(centerX + 1, fy + 4 + yOffset, 1, 1);
+      } else if (sparkPhase === 1) {
+        ctx.fillRect(centerX - 1, fy + 2 + yOffset, 1, 1);
+        ctx.fillRect(centerX + 2, fy + 3 + yOffset, 1, 1);
+      } else {
+        ctx.fillRect(centerX - 3, fy + 4 + yOffset, 1, 1);
+        ctx.fillRect(centerX + 0, fy + 2 + yOffset, 1, 1);
+      }
+
       ctx.restore();
     }
   });
@@ -1588,25 +1608,39 @@ function drGr() {
     if (c.type === 'police') {
       // Police car: dark gray body with single red/blue siren
       ctx.fillStyle = '#1a1a1a'; // Very dark gray, almost black
-        ctx.fillRect(drawX-1, drawY-1, 5, 4);
+      // Body centered on the same lane center as regular cars
+      ctx.fillRect(drawX, drawY, carWidth, carHeight);
+
       // Single red/blue alternating siren on top center
       const time = Date.now() / 200; // Blinking effect
       const redOn = Math.floor(time) % 2 === 0;
       ctx.fillStyle = redOn ? '#ff0000' : '#0066ff'; // Red or blue
-        ctx.fillRect(Math.floor(drawX)+1, drawY-1, 2, 1); // Top center siren (2px wide)
+
+      const sirenWidth = 2;
+      const sirenHeight = 1;
+      const sirenX = drawX + (carWidth - sirenWidth) / 2;
+      const sirenY = drawY - 1;
+      ctx.fillRect(Math.round(sirenX), sirenY, sirenWidth, sirenHeight);
     } else if (c.type === 'fire') {
       // Fire truck: longer body with single side-mounted flashing siren
       ctx.fillStyle = '#8b0000';
-        ctx.fillRect(drawX-2, drawY-1, 7, 4); // Longer: 7x4 instead of 5x4
+      // Body centered on the same lane center as regular cars
+      ctx.fillRect(drawX, drawY, carWidth, carHeight);
+
       // Single side siren (left side) alternating bright red/yellow
       const time = Date.now() / 200; // Blinking effect
       const redOn = Math.floor(time) % 2 === 0;
       ctx.fillStyle = redOn ? '#ff3333' : '#ffff00';
-        ctx.fillRect(drawX-2, drawY, 1, 2); // Vertical bar on left side
+
+      const sirenWidth = 1;
+      const sirenHeight = 2;
+      const sirenX = drawX - sirenWidth; // Just to the left of the truck body
+      const sirenY = drawY + (carHeight - sirenHeight) / 2;
+      ctx.fillRect(sirenX, Math.round(sirenY), sirenWidth, sirenHeight);
     } else {
       // Regular cars
-      ctx.fillStyle=c.color;
-        ctx.fillRect(drawX, drawY, 3, 2);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(drawX, drawY, 3, 2);
     }
     
     ctx.restore();
