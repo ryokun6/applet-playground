@@ -82,6 +82,14 @@
     
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="rciBtn">
+        <div id="powerShortageIndicator" class="flex items-center gap-0.5 text-xs mr-1" style="display: none;">
+          <span class="text-red-400">⚡</span>
+          <span id="powerShortageValue" class="text-red-400 tabular-nums"></span>
+        </div>
+        <div id="waterShortageIndicator" class="flex items-center gap-0.5 text-xs mr-1" style="display: none;">
+          <span class="text-red-400">💧</span>
+          <span id="waterShortageValue" class="text-red-400 tabular-nums"></span>
+        </div>
         <div class="w-1 h-4 bg-neutral-700 rounded-full overflow-hidden">
           <div id="rDemand" class="w-full bg-green-500 transition-all duration-300" style="height: 50%; margin-top: auto;"></div>
         </div>
@@ -105,10 +113,6 @@
         <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="happyBtn">
           <span class="text-neutral-500">♥</span>
           <span id="happiness" class="text-white tabular-nums">70</span>
-        </div>
-        <div class="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity" id="powerBtn">
-          <span class="text-neutral-500">⚡</span>
-          <span id="power" class="text-white tabular-nums">0/0</span>
         </div>
       </div>
     </div>
@@ -207,6 +211,7 @@
           <div class="h-1"></div>
         </div>
         <button data-submenu="power" data-tooltip="energy" data-shortcut="E" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">⚡</button>
+        <button data-submenu="water" data-tooltip="water" data-shortcut="Q" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">💧</button>
         <button data-submenu="services" data-tooltip="services" data-shortcut="S" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🏛️</button>
         <button data-submenu="park" data-tooltip="park" data-shortcut="P" class="tool-btn w-full aspect-square text-xl rounded transition-colors border border-transparent flex items-center justify-center">🌳</button>
         <div class="w-full flex flex-col">
@@ -244,7 +249,7 @@
   </div>
 
   <div id="infoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 max-h-48 overflow-y-auto flex-shrink-0">
-    <div class="max-w-md mx-auto">
+    <div>
       <div class="flex items-start gap-2 mb-2">
         <div class="flex-1">
           <div class="text-xs text-blue-400 mb-1" id="infoTitle">Info</div>
@@ -328,10 +333,13 @@
 <script>
 // Constants
 const GR_SZ = 32, CL_SZ = 16;
-const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000,coal:5000,nuclear:10000,wind:3000};
+const COSTS = {road:100,residential:500,commercial:800,industrial:1000,park:300,park2:300,park3:300,park4:300,police:2000,fire:2000,school:3000,hospital:4000,coal:5000,nuclear:10000,wind:3000,pipe:50,waterplant:4000,watertower:2000};
 const POWER_GENERATION = {coal:600,nuclear:1200,wind:240};
+const WATER_GENERATION = {waterplant:1600,watertower:800};
 // Approximate monthly maintenance cost per tile for each power plant type
 const POWER_PLANT_MAINTENANCE = {coal:40,nuclear:70,wind:20};
+// Approximate monthly maintenance cost per tile for each water plant type
+const WATER_PLANT_MAINTENANCE = {waterplant:30,watertower:15};
 const LAND_VALUE_LOW_COLOR = {r:250,g:204,b:21};
 const LAND_VALUE_HIGH_COLOR = {r:34,g:197,b:94};
 const STATION_MAX_ACTIVE = 2;
@@ -343,10 +351,11 @@ const EMERGENCY_SPEED_MULTIPLIER = 1.2;
 
 // State variables
 let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{}};
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{},waterGrid:[],waterShortageBuildings:{}};
 let nextBuildingId = 1;
 let showLandValueOverlay = false;
 let showCrimeOverlay = false;
+let showWaterOverlay = false;
 let highlightedBuilding = null;
 let currentInfoType = null;
 let activeSubmenu = null;
@@ -606,12 +615,14 @@ function normalizeEmptyCell(x,y) {
 function initGr(tt='balanced') {
   st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[]; st.stationDispatches={};
   st.powerShortageBuildings={};
+  st.waterShortageBuildings={};
   for (let y=0; y<GR_SZ; y++) {
     const r=[], vr=[], cr=[];
     for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); }
     st.grid.push(r); st.landValue.push(vr); st.crime.push(cr);
   }
   initPowerGrid();
+  initWaterGrid();
 }
 
 // ===== Save/Load =====
@@ -638,8 +649,12 @@ function ld() {
         if (!st.zoom) st.zoom=1;
         if (st.disastersEnabled === undefined) st.disastersEnabled = true;
         if (!st.powerGrid) initPowerGrid();
+        if (!st.waterGrid) initWaterGrid();
         if (!st.powerShortageBuildings || typeof st.powerShortageBuildings !== 'object') {
           st.powerShortageBuildings = {};
+        }
+        if (!st.waterShortageBuildings || typeof st.waterShortageBuildings !== 'object') {
+          st.waterShortageBuildings = {};
         }
         for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) { 
           if (!st.grid[y][x].level) st.grid[y][x].level=0; 
@@ -653,6 +668,7 @@ function ld() {
         rebuildBuildingIdsFromGrid();
         // Recalculate power grid after loading
         calculatePowerGrid();
+  calculateWaterGrid();
         return true;
       }
     }
@@ -663,6 +679,8 @@ function ld() {
 // ===== Rendering =====
 function isRd(x,y) { if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return false; return st.grid[y][x].type==='road'; }
 function getRdNb(x,y) { return {top:isRd(x,y-1),right:isRd(x+1,y),bottom:isRd(x,y+1),left:isRd(x-1,y)}; }
+function isPipe(x,y) { if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return false; return st.grid[y][x].pipe === true; }
+function getPipeNb(x,y) { return {top:isPipe(x,y-1),right:isPipe(x+1,y),bottom:isPipe(x,y+1),left:isPipe(x-1,y)}; }
 
 function drRd(px,py,nb) {
   ctx.fillStyle='#3a3a3a'; ctx.fillRect(px,py,CL_SZ,CL_SZ);
@@ -693,6 +711,7 @@ function drTl(x,y,tp,lv,ab,w,h) {
   
   // Check if building needs power but doesn't have it
   let needsPowerButNoPower = false;
+  let needsWaterButNoWater = false;
   if (!ab && (tp === 'residential' || tp === 'commercial' || tp === 'industrial')) {
     const level = lv || 0;
     let needsPower = false;
@@ -707,6 +726,13 @@ function drTl(x,y,tp,lv,ab,w,h) {
         needsPowerButNoPower = true;
       }
     }
+    // Check water - all buildings with level >= 1 need water
+    if (level >= 1) {
+      const hasWater = buildingHasWater(x, y);
+      if (!hasWater) {
+        needsWaterButNoWater = true;
+      }
+    }
   }
   if (tp==='empty') {
     if (tr==='water') ctx.fillStyle='#1e40af'; 
@@ -715,6 +741,36 @@ function drTl(x,y,tp,lv,ab,w,h) {
     ctx.fillRect(px,py,CL_SZ,CL_SZ);
   } else if (tp==='road') { 
     const nb=getRdNb(x,y); drRd(px,py,nb); 
+  }
+  
+  // Draw pipes on top of existing tiles (overlay) - but only for single tiles
+  // For multi-tile buildings, pipes will be drawn in a separate pass after all buildings
+  const shouldDrawPipeOverlay = c.pipe && showWaterOverlay && (w === 1 && h === 1);
+  if (shouldDrawPipeOverlay) {
+    const nb=getPipeNb(x,y);
+    const ht=nb.top,hr=nb.right,hb=nb.bottom,hl=nb.left, rc=(ht?1:0)+(hr?1:0)+(hb?1:0)+(hl?1:0);
+    ctx.fillStyle='rgba(96,165,250,0.4)'; // Brighter blue with higher opacity
+    ctx.fillRect(px,py,CL_SZ,CL_SZ);
+    ctx.fillStyle='rgba(59,130,246,0.7)'; // Brighter blue for pipe connections
+    
+    // Draw pipe connections similar to roads
+    if (rc===4) { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillRect(px,py+6,CL_SZ,4); }
+    else if (rc===3) {
+      if (!ht) { ctx.fillRect(px+6,py+6,4,CL_SZ-6); ctx.fillRect(px,py+6,CL_SZ,4); }
+      else if (!hr) { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillRect(px,py+6,10,4); }
+      else if (!hb) { ctx.fillRect(px+6,py,4,10); ctx.fillRect(px,py+6,CL_SZ,4); }
+      else { ctx.fillRect(px+6,py,4,CL_SZ); ctx.fillRect(px+6,py+6,CL_SZ-6,4); }
+    } else if (rc===2) {
+      if ((ht&&hb)||(!hl&&!hr)) { ctx.fillRect(px+6,py,4,CL_SZ); }
+      else if ((hl&&hr)||(!ht&&!hb)) { ctx.fillRect(px,py+6,CL_SZ,4); }
+      else if (ht&&hr) { ctx.fillRect(px+6,py,4,10); ctx.fillRect(px+6,py+6,CL_SZ-6,4); }
+      else if (hr&&hb) { ctx.fillRect(px+6,py+6,4,CL_SZ-6); ctx.fillRect(px+6,py+6,CL_SZ-6,4); }
+      else if (hb&&hl) { ctx.fillRect(px+6,py+6,4,CL_SZ-6); ctx.fillRect(px,py+6,10,4); }
+      else { ctx.fillRect(px+6,py,4,10); ctx.fillRect(px,py+6,10,4); }
+    } else if (rc===1) {
+      if (ht||hb) { ctx.fillRect(px+6,py,4,CL_SZ); }
+      else { ctx.fillRect(px,py+6,CL_SZ,4); }
+    } else { ctx.fillRect(px+6,py,4,CL_SZ); }
   }
   else if (tp==='residential') {
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
@@ -1155,6 +1211,138 @@ function drTl(x,y,tp,lv,ab,w,h) {
     ctx.fillRect(px+wd-10,py+23,2,2);
     ctx.fillRect(px+wd-6,py+23,2,2);
   }
+  else if (tp==='waterplant') {
+    // Water treatment plant - 2x2 building with realistic clarifier pools
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
+    ctx.fillStyle='#3b82f6'; ctx.fillRect(px+1,py+ht-3,wd-2,2);
+    
+    // Calculate rotation angle for pools - using wind turbine animation pattern
+    const rotationSpeed1 = 0.00125; // Slow rotation - 4x slower than before
+    const rotationSpeed2 = 0.001; // Slightly different speed
+    const angle1 = (Date.now() * rotationSpeed1) % (Math.PI * 2);
+    const angle2 = (Date.now() * rotationSpeed2) % (Math.PI * 2);
+    
+    // Left clarifier pool (large circular pool)
+    const pool1CenterX = px + 11;
+    const pool1CenterY = py + 9;
+    const pool1Radius = 7;
+    
+    // Pool 1 - outer concrete rim (blue)
+    ctx.fillStyle='#60a5fa';
+    ctx.beginPath();
+    ctx.arc(pool1CenterX, pool1CenterY, pool1Radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Pool 1 - water (deep blue)
+    ctx.fillStyle='#1e40af';
+    ctx.beginPath();
+    ctx.arc(pool1CenterX, pool1CenterY, pool1Radius - 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Pool 1 - water surface reflection (lighter blue with gradient effect)
+    ctx.fillStyle='#2563eb';
+    ctx.beginPath();
+    ctx.arc(pool1CenterX, pool1CenterY, pool1Radius - 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Pool 1 - rotating arm (clarifier rake)
+    ctx.save();
+    ctx.translate(pool1CenterX, pool1CenterY);
+    ctx.rotate(angle1);
+    ctx.fillStyle='#d0d0d0';
+    ctx.fillRect(-1, -0.5, pool1Radius - 2, 1); // Arm
+    ctx.fillStyle='#b0b0b0';
+    ctx.beginPath();
+    ctx.arc(0, 0, 1.5, 0, Math.PI * 2); // Center hub
+    ctx.fill();
+    ctx.restore();
+    
+    // Right clarifier pool (large circular pool)
+    const pool2CenterX = px + 23;
+    const pool2CenterY = py + 21;
+    const pool2Radius = 7;
+    
+    // Pool 2 - outer concrete rim (blue)
+    ctx.fillStyle='#60a5fa';
+    ctx.beginPath();
+    ctx.arc(pool2CenterX, pool2CenterY, pool2Radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Pool 2 - water (deep blue)
+    ctx.fillStyle='#1e40af';
+    ctx.beginPath();
+    ctx.arc(pool2CenterX, pool2CenterY, pool2Radius - 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Pool 2 - water surface reflection (lighter blue)
+    ctx.fillStyle='#2563eb';
+    ctx.beginPath();
+    ctx.arc(pool2CenterX, pool2CenterY, pool2Radius - 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Pool 2 - rotating arm (clarifier rake) - rotates opposite direction
+    ctx.save();
+    ctx.translate(pool2CenterX, pool2CenterY);
+    ctx.rotate(-angle2);
+    ctx.fillStyle='#d0d0d0';
+    ctx.fillRect(-1, -0.5, pool2Radius - 2, 1); // Arm
+    ctx.fillStyle='#b0b0b0';
+    ctx.beginPath();
+    ctx.arc(0, 0, 1.5, 0, Math.PI * 2); // Center hub
+    ctx.fill();
+    ctx.restore();
+    
+    // Small control building on the left side - drawn AFTER pools so it appears in front (blue)
+    ctx.fillStyle='#3b82f6'; ctx.fillRect(px+3,py+ht-12,11,11);
+    ctx.fillStyle='#2563eb'; ctx.fillRect(px+3,py+ht-12,11,3);
+    ctx.fillStyle='#1e40af';
+    ctx.fillRect(px+5,py+ht-8,2,2);
+    ctx.fillRect(px+9,py+ht-8,2,2);
+  }
+  else if (tp==='watertower') {
+    // Water tower - elevated tank on support structure
+    ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,CL_SZ,CL_SZ);
+    
+    // Support structure (metal frame)
+    ctx.fillStyle='#5a5a5a';
+    ctx.fillRect(px+6,py+8,4,8); // Center column
+    
+    // Support legs
+    ctx.fillStyle='#4a4a4a';
+    ctx.fillRect(px+4,py+12,2,4);
+    ctx.fillRect(px+10,py+12,2,4);
+    
+    // Cross braces
+    ctx.fillRect(px+5,py+10,6,1);
+    ctx.fillRect(px+5,py+14,6,1);
+    
+    // Large water tank on top
+    ctx.fillStyle='#6a6a6a'; // Tank body
+    ctx.beginPath();
+    ctx.arc(px+8,py+6,5,0,Math.PI*2);
+    ctx.fill();
+    
+    // Water inside tank (visible) - bright blue
+    ctx.fillStyle='#2563eb';
+    ctx.beginPath();
+    ctx.arc(px+8,py+7,3.5,0,Math.PI*2);
+    ctx.fill();
+    
+    // Water surface reflection (lighter)
+    ctx.fillStyle='#3b82f6';
+    ctx.fillRect(px+5,py+6,6,1);
+    
+    // Tank rim/top
+    ctx.fillStyle='#7a7a7a';
+    ctx.fillRect(px+3,py+4,10,2);
+    
+    // Access ladder
+    ctx.fillStyle='#3a3a3a';
+    ctx.fillRect(px+11,py+8,1,8);
+    ctx.fillRect(px+10,py+10,2,1);
+    ctx.fillRect(px+10,py+12,2,1);
+    ctx.fillRect(px+10,py+14,2,1);
+  }
   else if (tp==='wind') {
     // Background - grass with service road
     ctx.fillStyle='#2d5016'; ctx.fillRect(px,py,wd,ht);
@@ -1220,7 +1408,7 @@ function drTl(x,y,tp,lv,ab,w,h) {
   }
   ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=0.5; ctx.strokeRect(px,py,wd,ht);
   
-  // Draw power warning indicator if building needs power but doesn't have it
+  // Draw power/water warning indicators if building needs them but doesn't have them
   if (needsPowerButNoPower && !ab) {
     // Flash effect - show bolt every other half-second
     const flashOn = Math.floor(Date.now() / 500) % 2 === 0;
@@ -1247,6 +1435,48 @@ function drTl(x,y,tp,lv,ab,w,h) {
       ctx.restore();
     }
   }
+  
+  if (needsWaterButNoWater && !ab) {
+    // Animated water drop indicator - drips down
+    const dropAnim = (Date.now() / 400) % 4; // 4-frame animation
+    const dropFrame = Math.floor(dropAnim);
+    
+    ctx.save();
+    const indicatorX = px + 2;
+    const indicatorY = py + 2;
+    
+    // Water drop animates falling down
+    const yOffset = dropFrame; // 0, 1, 2, 3 pixels down
+    const dropY = indicatorY + yOffset;
+    
+    // Draw water drop shape (teardrop)
+    if (dropFrame < 3) {
+      // Main drop body (bright blue matching water tile hue)
+      ctx.fillStyle = dropFrame % 2 === 0 ? '#3b82f6' : '#60a5fa';
+      ctx.beginPath();
+      // Top curve
+      ctx.arc(indicatorX + 3, dropY + 2, 2.5, Math.PI, 0, false);
+      // Point at bottom
+      ctx.lineTo(indicatorX + 5.5, dropY + 6);
+      ctx.lineTo(indicatorX + 3, dropY + 7);
+      ctx.lineTo(indicatorX + 0.5, dropY + 6);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Highlight/shine
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillRect(indicatorX + 2, dropY + 3, 1, 2);
+    } else {
+      // Splash effect at bottom (frame 3)
+      ctx.fillStyle = '#3b82f6';
+      // Small splash particles
+      ctx.fillRect(indicatorX, dropY + 6, 2, 1);
+      ctx.fillRect(indicatorX + 4, dropY + 6, 2, 1);
+      ctx.fillRect(indicatorX + 2, dropY + 5, 2, 1);
+    }
+    
+    ctx.restore();
+  }
 }
 
 function drGr() {
@@ -1256,8 +1486,47 @@ function drGr() {
     const c=st.grid[y][x]; drTl(x,y,c.type,c.level||0,c.abandoned||false,c.w||1,c.h||1);
     for (let dy=0; dy<(c.h||1); dy++) for (let dx=0; dx<(c.w||1); dx++) drn[`${x+dx},${y+dy}`]=true;
   }
+  
+  // Draw pipes on multi-tile buildings after all buildings are drawn to avoid black tiles
+  if (showWaterOverlay) {
+    for (let y=0; y<GR_SZ; y++) {
+      for (let x=0; x<GR_SZ; x++) {
+        const c = st.grid[y][x];
+        if (c.pipe && (c.w > 1 || c.h > 1)) {
+          const px = x * CL_SZ, py = y * CL_SZ;
+          const nb = getPipeNb(x, y);
+          const ht = nb.top, hr = nb.right, hb = nb.bottom, hl = nb.left;
+          const rc = (ht ? 1 : 0) + (hr ? 1 : 0) + (hb ? 1 : 0) + (hl ? 1 : 0);
+          ctx.fillStyle = 'rgba(96,165,250,0.4)'; // Brighter blue with higher opacity
+          ctx.fillRect(px, py, CL_SZ, CL_SZ);
+          ctx.fillStyle = 'rgba(59,130,246,0.7)'; // Brighter blue for pipe connections
+          
+          // Draw pipe connections similar to roads
+          if (rc === 4) { ctx.fillRect(px+6, py, 4, CL_SZ); ctx.fillRect(px, py+6, CL_SZ, 4); }
+          else if (rc === 3) {
+            if (!ht) { ctx.fillRect(px+6, py+6, 4, CL_SZ-6); ctx.fillRect(px, py+6, CL_SZ, 4); }
+            else if (!hr) { ctx.fillRect(px+6, py, 4, CL_SZ); ctx.fillRect(px, py+6, 10, 4); }
+            else if (!hb) { ctx.fillRect(px+6, py, 4, 10); ctx.fillRect(px, py+6, CL_SZ, 4); }
+            else { ctx.fillRect(px+6, py, 4, CL_SZ); ctx.fillRect(px+6, py+6, CL_SZ-6, 4); }
+          } else if (rc === 2) {
+            if ((ht && hb) || (!hl && !hr)) { ctx.fillRect(px+6, py, 4, CL_SZ); }
+            else if ((hl && hr) || (!ht && !hb)) { ctx.fillRect(px, py+6, CL_SZ, 4); }
+            else if (ht && hr) { ctx.fillRect(px+6, py, 4, 10); ctx.fillRect(px+6, py+6, CL_SZ-6, 4); }
+            else if (hr && hb) { ctx.fillRect(px+6, py+6, 4, CL_SZ-6); ctx.fillRect(px+6, py+6, CL_SZ-6, 4); }
+            else if (hb && hl) { ctx.fillRect(px+6, py+6, 4, CL_SZ-6); ctx.fillRect(px, py+6, 10, 4); }
+            else { ctx.fillRect(px+6, py, 4, 10); ctx.fillRect(px, py+6, 10, 4); }
+          } else if (rc === 1) {
+            if (ht || hb) { ctx.fillRect(px+6, py, 4, CL_SZ); }
+            else { ctx.fillRect(px, py+6, CL_SZ, 4); }
+          } else { ctx.fillRect(px+6, py, 4, CL_SZ); }
+        }
+      }
+    }
+  }
+  
   if (showLandValueOverlay) drawLandValueOverlay();
   if (showCrimeOverlay) drawCrimeOverlay();
+  if (showWaterOverlay) drawWaterOverlay();
   
   // Draw placement preview when hovering
   if (hoverPos && st.selectedTool && st.selectedTool !== 'bulldoze' && !showLandValueOverlay && !showCrimeOverlay) {
@@ -1269,13 +1538,27 @@ function drGr() {
         bw = 2; bh = 2;
       } else if (st.selectedTool === 'wind') {
         bw = 1; bh = 2;
+      } else if (st.selectedTool === 'waterplant') {
+        bw = 2; bh = 2;
+      } else if (st.selectedTool === 'watertower') {
+        bw = 1; bh = 1;
+      } else if (st.selectedTool === 'pipe') {
+        bw = 1; bh = 1;
       }
       
       // Check if placement is valid
       let valid = true;
       const c = st.grid[y][x];
       const tr = st.terrain[y][x];
-      if (tr === 'water' || tr === 'cliff') valid = false;
+      // Pipes can be on water tiles, but not cliffs. Other buildings can't be on water or cliffs.
+      if (st.selectedTool === 'pipe') {
+        if (tr === 'cliff') valid = false;
+      } else {
+        if (tr === 'water' || tr === 'cliff') valid = false;
+      }
+      
+      const isPk = st.selectedTool.startsWith('park');
+      const isWaterTool = st.selectedTool === 'pipe' || st.selectedTool === 'waterplant' || st.selectedTool === 'watertower';
       
       if (bw > 1 || bh > 1) {
         for (let dy=0; dy<bh; dy++) {
@@ -1284,24 +1567,54 @@ function drGr() {
             if (nx >= GR_SZ || ny >= GR_SZ) { valid = false; break; }
             const nc = st.grid[ny][nx];
             const ntr = st.terrain[ny][nx];
-            if (ntr === 'water' || ntr === 'cliff') { valid = false; break; }
-            const isPk = st.selectedTool.startsWith('park');
+            // Pipes can be on water tiles, but not cliffs. Other buildings can't be on water or cliffs.
+            if (st.selectedTool === 'pipe') {
+              if (ntr === 'cliff') { valid = false; break; }
+            } else {
+              if (ntr === 'water' || ntr === 'cliff') { valid = false; break; }
+            }
             const isZone = nc.type === 'residential' || nc.type === 'commercial' || nc.type === 'industrial';
             const isEmptyZone = isZone && (nc.level === 0 || nc.abandoned);
             if (isPk) {
               if (nc.type !== 'empty' && !isEmptyZone) { valid = false; break; }
+            } else if (isWaterTool) {
+              // Pipes can overlay on any tile except water plants/towers
+              if (st.selectedTool === 'pipe' && (nc.type === 'waterplant' || nc.type === 'watertower')) { valid = false; break; }
+              // Water plants/towers need empty or abandoned tiles
+              if (st.selectedTool !== 'pipe' && nc.type !== 'empty' && !nc.abandoned) { valid = false; break; }
             } else {
               if (nc.type !== 'empty' && !nc.abandoned) { valid = false; break; }
             }
           }
           if (!valid) break;
         }
+        // Water plants must be within 2 tiles of water
+        if (valid && (st.selectedTool === 'waterplant' || st.selectedTool === 'watertower')) {
+          let nearWater = false;
+          for (let dy=0; dy<bh; dy++) {
+            for (let dx=0; dx<bw; dx++) {
+              const nx = x + dx, ny = y + dy;
+              if (isNearWaterTile(nx, ny, 2)) {
+                nearWater = true;
+                break;
+              }
+            }
+            if (nearWater) break;
+          }
+          if (!nearWater) valid = false;
+        }
       } else {
-        const isPk = st.selectedTool.startsWith('park');
         const isZone = c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial';
         const isEmptyZone = isZone && (c.level === 0 || c.abandoned);
         if (isPk) {
           if (c.type !== 'empty' && !isEmptyZone) valid = false;
+        } else if (isWaterTool) {
+          // Pipes can overlay on any tile except water plants/towers
+          if (st.selectedTool === 'pipe' && (c.type === 'waterplant' || c.type === 'watertower')) valid = false;
+          // Water plants/towers need empty or abandoned tiles
+          if (st.selectedTool !== 'pipe' && c.type !== 'empty' && !c.abandoned) valid = false;
+          // Water towers must be within 4 tiles of water
+          if (st.selectedTool === 'watertower' && !isNearWaterTile(x, y, 4)) valid = false;
         } else {
           if (c.type !== 'empty' && !c.abandoned) valid = false;
         }
@@ -1310,17 +1623,17 @@ function drGr() {
       // Draw semi-transparent preview
       if (valid) {
         ctx.save();
-        const px = x * CL_SZ, py = y * CL_SZ, wd = bw * CL_SZ, ht = bh * CL_SZ;
+        const px = x * CL_SZ, py = y * CL_SZ;
         
         // Draw the actual tile design semi-transparently
-        ctx.globalAlpha = 0.8;
+        ctx.globalAlpha = 0.6;
         drTl(x, y, st.selectedTool, 0, false, bw, bh);
         ctx.globalAlpha = 1.0;
         
-        // Draw semi-transparent white border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        // Draw semi-transparent white border around the building footprint
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.lineWidth = 2;
-        ctx.strokeRect(px, py, wd, ht);
+        ctx.strokeRect(px, py, bw * CL_SZ, bh * CL_SZ);
         ctx.restore();
       }
     }
@@ -1751,6 +2064,134 @@ function setCrimeOverlay(active) {
   }
   if (showCrimeOverlay) {
     showCrimeOverlay=false;
+    hideBuildingInfo();
+    drGr();
+    // Restore status text
+    const sTx = document.getElementById('statusText');
+    if (st.selectedTool) {
+      const tl = st.selectedTool;
+      if (tl === 'bulldoze') sTx.textContent = 'click to demolish buildings';
+      else {
+        const dn = tl.startsWith('park') ? 'park' : tl;
+        sTx.textContent = `placing ${dn}`;
+      }
+    } else {
+      sTx.textContent = 'select a tool to start building';
+    }
+  }
+}
+
+function drawWaterOverlay() {
+  // Only show overlay when water tools are active
+  if (st.selectedTool !== 'pipe' && st.selectedTool !== 'waterplant' && st.selectedTool !== 'watertower' && st.selectedTool !== 'bulldoze') {
+    return;
+  }
+  
+  ctx.save();
+  if (!st.waterGrid || st.waterGrid.length !== GR_SZ) {
+    calculateWaterGrid();
+  }
+  
+  // Show allowed placement range around water tiles when water plant tools are selected
+  if (st.selectedTool === 'waterplant' || st.selectedTool === 'watertower') {
+    for (let y=0; y<GR_SZ; y++) {
+      for (let x=0; x<GR_SZ; x++) {
+        const terrain=st.terrain[y][x];
+        // Skip water and cliff tiles themselves
+        if (terrain==='water'||terrain==='cliff') continue;
+        
+        // Check if this tile is within 4 tiles of water
+        if (isNearWaterTile(x, y, 4)) {
+          // Use a blue tint to show valid placement area
+          ctx.fillStyle='rgba(59,130,246,0.15)'; // Blue tint for valid placement range
+          ctx.fillRect(x*CL_SZ,y*CL_SZ,CL_SZ,CL_SZ);
+        }
+      }
+    }
+  }
+  
+  // First pass: show coverage areas around pipes (lighter blue)
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const terrain=st.terrain[y][x];
+      if (terrain==='water'||terrain==='cliff') continue;
+      
+      // Only show coverage for non-pipe tiles
+      if (st.waterGrid[y][x] && !st.grid[y][x].pipe) {
+        // Check if there's a connected pipe nearby (within 2-tile range to match actual coverage)
+        let hasNearbyPipe = false;
+        for (let dy=-2; dy<=2; dy++) {
+          for (let dx=-2; dx<=2; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+              if (st.grid[ny][nx].pipe && st.waterGrid[ny][nx]) {
+                hasNearbyPipe = true;
+                break;
+              }
+            }
+          }
+          if (hasNearbyPipe) break;
+        }
+        
+        if (hasNearbyPipe) {
+          ctx.fillStyle='rgba(59,130,246,0.2)'; // Bright blue with transparency for coverage
+          ctx.fillRect(x*CL_SZ,y*CL_SZ,CL_SZ,CL_SZ);
+        }
+      }
+    }
+  }
+  
+  // Second pass: highlight water infrastructure
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const terrain=st.terrain[y][x];
+      if (terrain==='water'||terrain==='cliff') continue;
+      
+      // Highlight water plants/towers with border
+      if (st.grid[y][x].type === 'waterplant' || st.grid[y][x].type === 'watertower') {
+        // Check if connected to pipe network
+        let isConnected = false;
+        const directions = [[0,-1], [0,1], [-1,0], [1,0]];
+        for (const [dx, dy] of directions) {
+          const nx = x + dx, ny = y + dy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            if (st.grid[ny][nx].pipe && st.waterGrid[ny][nx]) {
+              isConnected = true;
+              break;
+            }
+          }
+        }
+        
+        if (isConnected) {
+          ctx.fillStyle='rgba(59,130,246,0.25)'; // Bright blue for connected plants
+        } else {
+          ctx.fillStyle='rgba(239,68,68,0.3)'; // Red tint for disconnected plants
+        }
+        ctx.fillRect(x*CL_SZ,y*CL_SZ,CL_SZ,CL_SZ);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function setWaterOverlay(active) {
+  const enable=!!active;
+  // Only allow overlay if water tool is selected
+  if (enable && st.selectedTool !== 'pipe' && st.selectedTool !== 'waterplant' && st.selectedTool !== 'watertower') {
+    return;
+  }
+  
+  if (enable) {
+    showWaterOverlay=true;
+    calculateWaterGrid();
+    drGr();
+    // Update status text
+    const sTx = document.getElementById('statusText');
+    sTx.textContent = 'water overlay active - click buildings to view details';
+    return;
+  }
+  if (showWaterOverlay) {
+    showWaterOverlay=false;
     hideBuildingInfo();
     drGr();
     // Restore status text
@@ -2598,6 +3039,7 @@ function shwInfo(title,content,infoType) {
     currentInfoType = null;
     setLandValueOverlay(false);
     setCrimeOverlay(false);
+    setWaterOverlay(false);
     return;
   }
   
@@ -2611,8 +3053,19 @@ function shwInfo(title,content,infoType) {
   if (infoType === 'happy') {
     setLandValueOverlay(false);
     setCrimeOverlay(true);
+    setWaterOverlay(false);
+  } else if (infoType === 'water') {
+    setLandValueOverlay(false);
+    setCrimeOverlay(false);
+    // Only show water overlay if a water tool is selected
+    if (st.selectedTool === 'pipe' || st.selectedTool === 'waterplant' || st.selectedTool === 'watertower') {
+      setWaterOverlay(true);
+    } else {
+      setWaterOverlay(false);
+    }
   } else {
     setCrimeOverlay(false);
+    setWaterOverlay(false);
     setLandValueOverlay(STAT_INFO_TYPES.includes(infoType));
   }
 }
@@ -2634,18 +3087,27 @@ function updUI() {
   document.getElementById('money').textContent=fmtCompact(st.money);
   document.getElementById('happiness').textContent=st.happiness;
   
-  // Calculate and update power status
+  // Calculate and update power/water shortage indicators (only show when negative)
   const powerStats = calculatePowerStats();
-  const powerEl = document.getElementById('power');
   const powerSurplus = powerStats.powerSurplus;
-  const surplusDisplay = powerSurplus >= 0 ? `+${powerSurplus}` : powerSurplus.toString();
-  powerEl.textContent = surplusDisplay;
+  const powerShortageIndicator = document.getElementById('powerShortageIndicator');
+  const powerShortageValue = document.getElementById('powerShortageValue');
   if (powerSurplus < 0) {
-    powerEl.classList.remove('text-white', 'text-green-400', 'text-yellow-400');
-    powerEl.classList.add('text-red-400');
+    powerShortageIndicator.style.display = 'flex';
+    powerShortageValue.textContent = powerSurplus.toString();
   } else {
-    powerEl.classList.remove('text-red-400', 'text-green-400', 'text-yellow-400');
-    powerEl.classList.add('text-white');
+    powerShortageIndicator.style.display = 'none';
+  }
+  
+  const waterStats = calculateWaterStats();
+  const waterSurplus = waterStats.waterSurplus;
+  const waterShortageIndicator = document.getElementById('waterShortageIndicator');
+  const waterShortageValue = document.getElementById('waterShortageValue');
+  if (waterSurplus < 0) {
+    waterShortageIndicator.style.display = 'flex';
+    waterShortageValue.textContent = waterSurplus.toString();
+  } else {
+    waterShortageIndicator.style.display = 'none';
   }
   
   if (!edtNm) {
@@ -2667,10 +3129,35 @@ function updUI() {
 }
 
 function selTl(tl) {
+  // Check if we're in water tool mode (water submenu is open or water tool was selected)
+  const isWaterToolMode = activeSubmenu && activeSubmenu.submenuKey === 'water';
+  const wasWaterTool = st.selectedTool === 'pipe' || st.selectedTool === 'waterplant' || st.selectedTool === 'watertower';
+  
+  // Auto-show water overlay when water tools are selected, hide otherwise
+  if (tl === 'pipe' || tl === 'waterplant' || tl === 'watertower') {
+    setWaterOverlay(true);
+  } else if (tl === 'bulldoze' && (isWaterToolMode || wasWaterTool)) {
+    // Keep water overlay when switching to bulldoze from water tools
+    setWaterOverlay(true);
+  } else {
+    // Always hide water overlay when switching to non-water tools (unless coming from water mode)
+    if (!isWaterToolMode && !wasWaterTool) {
+      setWaterOverlay(false);
+    }
+  }
   st.selectedTool=tl;
   updateToolSelection();
   const c=COSTS[tl]||0, cTx=document.getElementById('costText'), sTx=document.getElementById('statusText');
-  if (tl==='bulldoze') { sTx.textContent='click to demolish buildings'; cTx.textContent=''; }
+  if (tl==='bulldoze') {
+    // Check if we're in water tool mode
+    const isWaterToolMode = activeSubmenu && activeSubmenu.submenuKey === 'water';
+    if (isWaterToolMode) {
+      sTx.textContent='click to demolish water infrastructure'; 
+    } else {
+      sTx.textContent='click to demolish buildings';
+    }
+    cTx.textContent='';
+  }
   else if (tl) {
     const dn=tl.startsWith('park')?'park':tl;
     sTx.textContent=`placing ${dn}`;
@@ -2869,6 +3356,47 @@ function plcTl(x,y) {
   const c=st.grid[y][x], tr=st.terrain[y][x];
   if (tr==='water'||tr==='cliff') { plySnd('error'); return; }
   if (st.selectedTool==='bulldoze') {
+    // Check if we're in water tool mode
+    const isWaterToolMode = activeSubmenu && activeSubmenu.submenuKey === 'water';
+    
+    if (isWaterToolMode) {
+      // In water tool mode, only allow demolishing water-related items
+      let removedWaterItem = false;
+      
+      // Remove pipes (can be on any tile)
+      if (c.pipe) {
+        delete c.pipe;
+        normalizeEmptyCell(x,y);
+        calculateWaterGrid();
+        removedWaterItem = true;
+      }
+      
+      // Remove water plants/towers (check the clicked cell)
+      if (c.type === 'waterplant' || c.type === 'watertower') {
+        const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
+        for (let dy=0; dy<h; dy++) {
+          for (let dx=0; dx<w; dx++) {
+            const nx=startX+dx, ny=startY+dy;
+            if (nx<GR_SZ && ny<GR_SZ) {
+              st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+              normalizeEmptyCell(nx,ny);
+            }
+          }
+        }
+        calculateWaterGrid();
+        removedWaterItem = true;
+      }
+      
+      if (removedWaterItem) {
+        plySnd('bulldoze');
+        drGr(); sv();
+      } else {
+        plySnd('error');
+      }
+      return;
+    }
+    
+    // Normal bulldoze mode (not in water tool mode)
     if (c.type!=='empty') {
       plySnd('bulldoze');
 
@@ -2876,13 +3404,24 @@ function plcTl(x,y) {
       if (c.type==='road') {
         st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
         normalizeEmptyCell(x,y);
-        calculatePowerGrid(); // Recalculate power grid when roads are removed
+        calculatePowerGrid();
+  calculateWaterGrid(); // Recalculate power grid when roads are removed
         drGr(); sv();
         return;
       }
       
-        // Check if removing a power plant
-        const wasPowerPlant = c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind';
+      // Pipes: remove pipe property (pipes overlay on tiles)
+      if (c.pipe) {
+        delete c.pipe;
+        normalizeEmptyCell(x,y);
+        calculateWaterGrid(); // Recalculate water grid when pipes are removed
+        drGr(); sv();
+        return;
+      }
+      
+      // Check if removing a water plant
+      const wasWaterPlant = c.type === 'waterplant' || c.type === 'watertower';
+      
 
         const {startX,startY,w,h}=getBuildingBoundsFromCell(x,y);
         const isZone=c.type==='residential'||c.type==='commercial'||c.type==='industrial';
@@ -2911,8 +3450,15 @@ function plcTl(x,y) {
         }
       
       // Recalculate power grid if a power plant was removed
+      const wasPowerPlant = c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind';
       if (wasPowerPlant) {
         calculatePowerGrid();
+  calculateWaterGrid();
+      }
+      
+      // Recalculate water grid if a water plant was removed
+      if (wasWaterPlant) {
+        calculateWaterGrid();
       }
 
       drGr(); sv();
@@ -2963,6 +3509,12 @@ function plcTl(x,y) {
       bw = 2; bh = 2; // 2x2 for coal and nuclear
     } else if (st.selectedTool === 'wind') {
       bw = 1; bh = 2; // 1x2 for wind
+    } else if (st.selectedTool === 'waterplant') {
+      bw = 2; bh = 2; // 2x2 for water treatment plant
+    } else if (st.selectedTool === 'watertower') {
+      bw = 1; bh = 1; // 1x1 for water tower
+    } else if (st.selectedTool === 'pipe') {
+      bw = 1; bh = 1; // 1x1 for pipes
     }
     
     // Check if we can place a multi-tile building
@@ -2980,8 +3532,52 @@ function plcTl(x,y) {
         }
         if (!canPlace) break;
       }
+      // Water plants must be within 4 tiles of water
+      if (canPlace && (st.selectedTool === 'waterplant' || st.selectedTool === 'watertower')) {
+        let nearWater = false;
+        for (let dy=0; dy<bh; dy++) {
+          for (let dx=0; dx<bw; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (isNearWaterTile(nx, ny, 4)) {
+              nearWater = true;
+              break;
+            }
+          }
+          if (nearWater) break;
+        }
+        if (!nearWater) { canPlace = false; }
+      }
       if (!canPlace) { plySnd('error'); return; }
     } else {
+      // For single-tile buildings, check if pipe can overlay
+      if (st.selectedTool === 'pipe') {
+        // Pipes can overlay on any tile except cliff terrain and water plants
+        if (tr === 'cliff') {
+          plySnd('error');
+          return;
+        }
+        // Cannot place pipes on water plants/towers
+        if (c.type === 'waterplant' || c.type === 'watertower') {
+          plySnd('error');
+          return;
+        }
+        // Add pipe property to the cell
+        if (!st.grid[y][x].pipe) {
+          const cs=COSTS.pipe||0; 
+          if (st.money<cs) { plySnd('error'); return; }
+          st.grid[y][x].pipe = true;
+          plySnd('place');
+          st.money -= cs;
+          calculateWaterGrid();
+          drGr(); updUI(); sv();
+        }
+        return;
+      }
+      // Water towers must be within 4 tiles of water
+      if (st.selectedTool === 'watertower' && !isNearWaterTile(x, y, 4)) {
+        plySnd('error');
+        return;
+      }
       if (c.type!=='empty' && !c.abandoned) return;
     }
     
@@ -3004,6 +3600,12 @@ function plcTl(x,y) {
     // Recalculate power grid if a power plant or road was placed
     if (st.selectedTool === 'coal' || st.selectedTool === 'nuclear' || st.selectedTool === 'wind' || st.selectedTool === 'road') {
       calculatePowerGrid();
+  calculateWaterGrid();
+    }
+    
+    // Recalculate water grid if a water plant or water tower was placed
+    if (st.selectedTool === 'waterplant' || st.selectedTool === 'watertower') {
+      calculateWaterGrid();
     }
   }
   drGr(); updUI(); sv();
@@ -3283,6 +3885,11 @@ const submenuItems = {
     { tool: 'school', icon: '🏫', tooltip: 'school', shortcut: '3' },
     { tool: 'hospital', icon: '🏥', tooltip: 'hospital', shortcut: '4' }
   ],
+  water: [
+    { tool: 'pipe', icon: '💧', tooltip: 'water pipe', shortcut: '1' },
+    { tool: 'waterplant', icon: '🏭', tooltip: 'water treatment plant', shortcut: '2' },
+    { tool: 'watertower', icon: '🗼', tooltip: 'water tower', shortcut: '3' }
+  ],
   power: [
     { tool: 'coal', icon: '⚡', tooltip: 'coal plant', shortcut: '1' },
     { tool: 'nuclear', icon: '☢️', tooltip: 'nuclear plant', shortcut: '2' },
@@ -3296,8 +3903,13 @@ const submenuItems = {
 };
 
 function openSubmenu(button, submenuKey) {
-  // Close any existing submenu
-  closeSubmenu();
+  // Don't close water submenu if switching to bulldoze
+  if (activeSubmenu && activeSubmenu.submenuKey === 'water' && st.selectedTool === 'bulldoze') {
+    // Keep water submenu open
+  } else {
+    // Close any existing submenu
+    closeSubmenu();
+  }
   
   // Store reference to the button
   activeSubmenu = { button, submenuKey };
@@ -3362,6 +3974,11 @@ function openSubmenu(button, submenuKey) {
     selTl(items[0].tool);
   }
   
+  // Show water overlay when water submenu opens
+  if (submenuKey === 'water') {
+    setWaterOverlay(true);
+  }
+  
   // Make submenu invisible but rendered to measure it
   subToolbar.style.visibility = 'hidden';
   subToolbar.classList.remove('hidden');
@@ -3392,12 +4009,46 @@ function openSubmenu(button, submenuKey) {
 
 function closeSubmenu() {
   if (activeSubmenu) {
+    // Don't close water submenu if bulldoze is selected (water tool mode)
+    if (activeSubmenu.submenuKey === 'water' && st.selectedTool === 'bulldoze') {
+      return;
+    }
+    
     // Restore original button content
     if (activeSubmenu.button.dataset.originalContent) {
       activeSubmenu.button.innerHTML = activeSubmenu.button.dataset.originalContent;
       activeSubmenu.button.classList.remove('submenu-active');
     }
+    const wasWaterSubmenu = activeSubmenu.submenuKey === 'water';
     activeSubmenu = null;
+    
+    // Always hide water overlay when water submenu closes (unless bulldoze is selected)
+    if (wasWaterSubmenu && st.selectedTool !== 'bulldoze') {
+      setWaterOverlay(false);
+    }
+  }
+  
+  // Hide sub-toolbar and reset position
+  const subToolbar = document.getElementById('subToolbar');
+  subToolbar.classList.add('hidden');
+  subToolbar.style.top = '';
+  subToolbar.style.visibility = '';
+}
+
+function forceCloseSubmenu() {
+  if (activeSubmenu) {
+    // Restore original button content
+    if (activeSubmenu.button.dataset.originalContent) {
+      activeSubmenu.button.innerHTML = activeSubmenu.button.dataset.originalContent;
+      activeSubmenu.button.classList.remove('submenu-active');
+    }
+    const wasWaterSubmenu = activeSubmenu.submenuKey === 'water';
+    activeSubmenu = null;
+    
+    // Always hide water overlay when water submenu closes
+    if (wasWaterSubmenu) {
+      setWaterOverlay(false);
+    }
   }
   
   // Hide sub-toolbar and reset position
@@ -3481,6 +4132,8 @@ const keyToTool = {
   'S': 'services',
   'e': 'power',
   'E': 'power',
+  'q': 'water',
+  'Q': 'water',
   'd': 'bulldoze',
   'D': 'bulldoze',
   'w': 'disaster',
@@ -3529,6 +4182,16 @@ function triggerToolByKey(key) {
         closeSubmenu();
       } else {
         openSubmenu(powerBtn, 'power');
+      }
+      return true;
+    }
+  } else if (tool === 'water') {
+    const waterBtn = document.querySelector('[data-submenu="water"]');
+    if (waterBtn) {
+      if (activeSubmenu && activeSubmenu.button === waterBtn) {
+        closeSubmenu();
+      } else {
+        openSubmenu(waterBtn, 'water');
       }
       return true;
     }
@@ -3657,9 +4320,9 @@ document.querySelectorAll('.tool-btn').forEach(b => {
     
     // Check if this button has a submenu
     if (b.dataset.submenu) {
-      // If submenu is already open, close it
+      // If submenu is already open, close it (force close to handle water+bulldoze case)
       if (activeSubmenu && activeSubmenu.button === b) {
-        closeSubmenu();
+        forceCloseSubmenu();
       } else {
         // Open submenu
         openSubmenu(b, b.dataset.submenu);
@@ -3926,6 +4589,7 @@ document.getElementById('aiSuggestBtn').addEventListener('click', async () => {
   currentInfoType = null;
   setLandValueOverlay(false);
   setCrimeOverlay(false);
+  setWaterOverlay(false);
   const pnl=document.getElementById('aiPanel'), msg=document.getElementById('aiMessage');
   pnl.classList.remove('hidden'); msg.innerHTML='<span class="text-neutral-500">thinking...</span>';
   const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
@@ -3946,6 +4610,7 @@ document.getElementById('closeInfoBtn').addEventListener('click', () => {
   currentInfoType = null;
   setLandValueOverlay(false);
   setCrimeOverlay(false);
+  setWaterOverlay(false);
 });
 
 function statItem(label, value, colorClass = '') {
@@ -3961,8 +4626,58 @@ function getStatsContent(infoType) {
   let title = '';
   
   if (infoType === 'rci') {
-    title = 'RCI Demand';
-    content = `<div class="flex flex-wrap gap-6 py-2">${statItem('residential', `${st.rDemand}%`, 'text-green-500')}${statItem('commercial', `${st.cDemand}%`, 'text-blue-500')}${statItem('industrial', `${st.iDemand}%`, 'text-yellow-500')}</div><div class="mt-3 text-xs text-neutral-400">Higher demand means more zones needed</div>`;
+    title = 'City Stats';
+    
+    // Get power and water stats with details
+    const powerStats = calculatePowerStats(true);
+    const powerSurplus = powerStats.powerSurplus;
+    const powerColor = powerSurplus >= 0 ? 'text-green-500' : 'text-red-500';
+    const powerDisplay = powerSurplus >= 0 ? `+${powerSurplus}` : powerSurplus.toString();
+    
+    const waterStats = calculateWaterStats(true);
+    const waterSurplus = waterStats.waterSurplus;
+    const waterColor = waterSurplus >= 0 ? 'text-green-500' : 'text-red-500';
+    const waterDisplay = waterSurplus >= 0 ? `+${waterSurplus}` : waterSurplus.toString();
+    
+    content = `
+      <div class="space-y-3">
+        <div>
+          <div class="text-xs text-neutral-500 mb-1">RCI Demand</div>
+          <div class="flex flex-wrap gap-6 py-2">
+            ${statItem('residential', `${st.rDemand}%`, 'text-green-500')}
+            ${statItem('commercial', `${st.cDemand}%`, 'text-blue-500')}
+            ${statItem('industrial', `${st.iDemand}%`, 'text-yellow-500')}
+          </div>
+        </div>
+        <div class="h-px w-full bg-neutral-700"></div>
+        <div>
+          <div class="text-xs text-neutral-500 mb-1">⚡ Power</div>
+          <div class="flex flex-wrap gap-6 py-2">
+            ${statItem('generation', `+${powerStats.totalPowerGeneration}`, 'text-green-500')}
+            ${statItem('consumption', `-${powerStats.totalPowerConsumption}`, 'text-red-500')}
+            ${statItem('surplus', powerDisplay, powerColor)}
+          </div>
+          <div class="flex flex-wrap gap-6 py-1 text-xs">
+            ${powerStats.coalCount > 0 ? statItem('Coal', `+${powerStats.coalGen} (${powerStats.coalCount})`, '') : ''}
+            ${powerStats.nuclearCount > 0 ? statItem('Nuclear', `+${powerStats.nuclearGen} (${powerStats.nuclearCount})`, '') : ''}
+            ${powerStats.windCount > 0 ? statItem('Wind', `+${powerStats.windGen} (${powerStats.windCount})`, '') : ''}
+          </div>
+        </div>
+        <div class="h-px w-full bg-neutral-700"></div>
+        <div>
+          <div class="text-xs text-neutral-500 mb-1">💧 Water</div>
+          <div class="flex flex-wrap gap-6 py-2">
+            ${statItem('generation', `+${waterStats.totalWaterGeneration}`, 'text-green-500')}
+            ${statItem('consumption', `-${waterStats.totalWaterConsumption}`, 'text-red-500')}
+            ${statItem('surplus', waterDisplay, waterColor)}
+          </div>
+          <div class="flex flex-wrap gap-6 py-1 text-xs">
+            ${waterStats.waterplantCount > 0 ? statItem('Treatment', `+${waterStats.waterplantGen} (${waterStats.waterplantCount})`, '') : ''}
+            ${waterStats.watertowerCount > 0 ? statItem('Tower', `+${waterStats.watertowerGen} (${waterStats.watertowerCount})`, '') : ''}
+          </div>
+        </div>
+      </div>
+      <div class="mt-3 text-xs text-neutral-400">Power flows via roads, water via pipes. Negative values indicate shortage.</div>`;
   } else if (infoType === 'pop') {
     title = 'Population';
     const bPR=10; let popL1=0, popL2=0, popL3=0;
@@ -4010,6 +4725,39 @@ function getStatsContent(infoType) {
       </div>
     </div>
     <div class="mt-2 text-xs text-neutral-400">Power flows via roads from power plants. L2+L3 residential, all commercial and industrial require power.</div>`;
+  } else if (infoType === 'water') {
+    title = 'Water';
+    // Calculate water stats with detailed breakdown
+    const waterStats = calculateWaterStats(true);
+    const waterSurplus = waterStats.waterSurplus;
+    const waterColor = waterSurplus >= 0 ? 'text-green-500' : 'text-red-500';
+    const surplusDisplay = waterSurplus >= 0 ? `+${waterSurplus}` : waterSurplus.toString();
+    
+    content = `<div class="flex flex-wrap gap-6 py-2">
+      ${statItem('generation', `+${waterStats.totalWaterGeneration}`, 'text-green-500')}
+      ${statItem('consumption', `-${waterStats.totalWaterConsumption}`, 'text-red-500')}
+      ${statItem('surplus', surplusDisplay, waterColor)}
+    </div>
+    <div class="mt-2 space-y-2">
+      <div>
+        <div class="h-px w-full bg-neutral-700 mb-1"></div>
+        <div class="flex flex-wrap gap-6 py-2">
+          ${waterStats.waterplantCount > 0 ? statItem('Treatment Plant', `+${waterStats.waterplantGen} (${waterStats.waterplantCount})`, '') : ''}
+          ${waterStats.watertowerCount > 0 ? statItem('Water Tower', `+${waterStats.watertowerGen} (${waterStats.watertowerCount})`, '') : ''}
+          ${waterStats.waterplantCount === 0 && waterStats.watertowerCount === 0 ? '<div class="text-xs text-neutral-500">No water infrastructure built</div>' : ''}
+        </div>
+      </div>
+      <div>
+        <div class="h-px w-full bg-neutral-700 mb-1"></div>
+        <div class="flex flex-wrap gap-6 py-2">
+          ${waterStats.residentialConsumption > 0 ? statItem('Residential', `-${waterStats.residentialConsumption}`, 'text-green-500') : ''}
+          ${waterStats.commercialConsumption > 0 ? statItem('Commercial', `-${waterStats.commercialConsumption}`, 'text-blue-500') : ''}
+          ${waterStats.industrialConsumption > 0 ? statItem('Industrial', `-${waterStats.industrialConsumption}`, 'text-yellow-500') : ''}
+          ${waterStats.totalWaterConsumption === 0 ? '<div class="text-xs text-neutral-500">No buildings consuming water</div>' : ''}
+        </div>
+      </div>
+    </div>
+    <div class="mt-2 text-xs text-neutral-400">Water flows via pipes from water plants/towers. All L1+ buildings require water.</div>`;
   } else if (infoType === 'money') {
     title = 'Budget';
     // Calculate income breakdown (same logic as simTk)
@@ -4162,8 +4910,8 @@ function getStatsContent(infoType) {
   return { title, content };
 }
 
-['rciBtn','popBtn','moneyBtn','happyBtn','powerBtn'].forEach((btnId, idx) => {
-  const infoType = ['rci','pop','money','happy','power'][idx];
+['rciBtn','popBtn','moneyBtn','happyBtn'].forEach((btnId, idx) => {
+  const infoType = ['rci','pop','money','happy'][idx];
   document.getElementById(btnId).addEventListener('click', () => {
     const { title, content } = getStatsContent(infoType);
     shwInfo(title, content, infoType);
@@ -4342,6 +5090,338 @@ function buildingHasPower(x,y) {
   if (!key) return false;
   if (!st.powerShortageBuildings || typeof st.powerShortageBuildings !== 'object') return true;
   return !st.powerShortageBuildings[key];
+}
+
+// ===== Water System =====
+function getWaterConsumption(buildingType, level) {
+  if (buildingType === 'residential') {
+    if (level === 1) return 3;
+    if (level === 2) return 6;
+    if (level === 3) return 10;
+    return 0; // L0 residential doesn't need water
+  } else if (buildingType === 'commercial') {
+    if (level === 1) return 8;
+    if (level === 2) return 15;
+    if (level === 3) return 25;
+    return 0;
+  } else if (buildingType === 'industrial') {
+    if (level === 1) return 12;
+    if (level === 2) return 25;
+    if (level === 3) return 40;
+    return 0;
+  }
+  return 0;
+}
+
+function getBuildingWaterKey(x, y) {
+  if (x<0 || x>=GR_SZ || y<0 || y>=GR_SZ) return null;
+  const cell = st.grid[y][x];
+  if (!cell || !cell.type || cell.type === 'empty') return null;
+  if (cell.buildingId != null) return `b:${cell.buildingId}`;
+  const bounds = getBuildingBoundsFromCell(x,y);
+  const w = bounds.w || 1;
+  const h = bounds.h || 1;
+  return `b:${cell.type}:${bounds.startX},${bounds.startY},${w}x${h}`;
+}
+
+function getWaterPlantKey(x, y) {
+  if (x<0 || x>=GR_SZ || y<0 || y>=GR_SZ) return null;
+  const cell = st.grid[y][x];
+  if (!cell || !cell.type) return null;
+  if (cell.buildingId != null) return `p:${cell.buildingId}`;
+  const bounds = getBuildingBoundsFromCell(x,y);
+  const w = bounds.w || 1;
+  const h = bounds.h || 1;
+  return `p:${cell.type}:${bounds.startX},${bounds.startY},${w}x${h}`;
+}
+
+function getWaterSystemSnapshot() {
+  const processedWaterPlants = new Set();
+  const processedBuildings = new Set();
+  const consumers = [];
+  let totalWaterGeneration = 0;
+  let totalWaterConsumption = 0;
+  let waterplantGen = 0, watertowerGen = 0;
+  let waterplantCount = 0, watertowerCount = 0;
+  let residentialConsumption = 0, commercialConsumption = 0, industrialConsumption = 0;
+  
+  for (let y = 0; y < GR_SZ; y++) {
+    for (let x = 0; x < GR_SZ; x++) {
+      const cell = st.grid[y][x];
+      if (!cell) continue;
+      
+      if (cell.type === 'waterplant' || cell.type === 'watertower') {
+        const plantKey = getWaterPlantKey(x,y);
+        if (plantKey && !processedWaterPlants.has(plantKey)) {
+          processedWaterPlants.add(plantKey);
+          const gen = WATER_GENERATION[cell.type] || 0;
+          totalWaterGeneration += gen;
+          if (cell.type === 'waterplant') { waterplantGen += gen; waterplantCount++; }
+          else if (cell.type === 'watertower') { watertowerGen += gen; watertowerCount++; }
+        }
+      }
+      
+      if (cell.type === 'residential' || cell.type === 'commercial' || cell.type === 'industrial') {
+        if (cell.abandoned) continue;
+        const buildingKey = getBuildingWaterKey(x,y);
+        if (!buildingKey || processedBuildings.has(buildingKey)) continue;
+        processedBuildings.add(buildingKey);
+        
+        const level = cell.level || 0;
+        const perTileConsumption = getWaterConsumption(cell.type, level);
+        if (perTileConsumption <= 0) continue;
+        const bounds = getBuildingBoundsFromCell(x,y);
+        const area = Math.max(1,(bounds.w||1)*(bounds.h||1));
+        const consumption = perTileConsumption * area;
+        totalWaterConsumption += consumption;
+        if (cell.type === 'residential') residentialConsumption += consumption;
+        else if (cell.type === 'commercial') commercialConsumption += consumption;
+        else industrialConsumption += consumption;
+        
+        const hasConnection = hasWaterAccess(x,y);
+        consumers.push({
+          key: buildingKey,
+          type: cell.type,
+          level,
+          consumption,
+          hasConnection,
+          x: bounds.startX,
+          y: bounds.startY
+        });
+      }
+    }
+  }
+  
+  return {
+    totalWaterGeneration,
+    totalWaterConsumption,
+    waterplantGen,
+    watertowerGen,
+    waterplantCount,
+    watertowerCount,
+    residentialConsumption,
+    commercialConsumption,
+    industrialConsumption,
+    consumers
+  };
+}
+
+function allocateWaterToBuildings() {
+  if (!st.waterShortageBuildings || typeof st.waterShortageBuildings !== 'object') {
+    st.waterShortageBuildings = {};
+  }
+  const snapshot = getWaterSystemSnapshot();
+  const shortageMap = {};
+  const connectedBuildings = [];
+  
+  for (const consumer of snapshot.consumers) {
+    if (!consumer.hasConnection) {
+      shortageMap[consumer.key] = true;
+    } else if (consumer.consumption > 0) {
+      connectedBuildings.push(consumer);
+    }
+  }
+  
+  const typePriority = {residential:0, commercial:1, industrial:2};
+  connectedBuildings.sort((a,b) => {
+    const typeDiff = (typePriority[a.type] ?? 99) - (typePriority[b.type] ?? 99);
+    if (typeDiff !== 0) return typeDiff;
+    if (b.level !== a.level) return b.level - a.level;
+    if (a.consumption !== b.consumption) return a.consumption - b.consumption;
+    return a.key.localeCompare(b.key);
+  });
+  
+  let remainingWater = snapshot.totalWaterGeneration;
+  for (const building of connectedBuildings) {
+    if (remainingWater >= building.consumption) {
+      remainingWater -= building.consumption;
+    } else {
+      shortageMap[building.key] = true;
+    }
+  }
+  
+  st.waterShortageBuildings = shortageMap;
+}
+
+// Calculate water generation and consumption statistics
+function calculateWaterStats(includeDetails = false) {
+  const snapshot = getWaterSystemSnapshot();
+  const result = {
+    totalWaterGeneration: snapshot.totalWaterGeneration,
+    totalWaterConsumption: snapshot.totalWaterConsumption,
+    waterSurplus: snapshot.totalWaterGeneration - snapshot.totalWaterConsumption
+  };
+  
+  if (includeDetails) {
+    result.waterplantGen = snapshot.waterplantGen;
+    result.watertowerGen = snapshot.watertowerGen;
+    result.waterplantCount = snapshot.waterplantCount;
+    result.watertowerCount = snapshot.watertowerCount;
+    result.residentialConsumption = snapshot.residentialConsumption;
+    result.commercialConsumption = snapshot.commercialConsumption;
+    result.industrialConsumption = snapshot.industrialConsumption;
+  }
+  
+  return result;
+}
+
+function initWaterGrid() {
+  if (!st.waterGrid || st.waterGrid.length !== GR_SZ) {
+    st.waterGrid = [];
+    for (let y=0; y<GR_SZ; y++) {
+      st.waterGrid.push([]);
+      for (let x=0; x<GR_SZ; x++) st.waterGrid[y][x] = false;
+    }
+  }
+}
+
+function calculateWaterGrid() {
+  // Always reset the entire grid to false before recalculating
+  st.waterGrid = [];
+  for (let y=0; y<GR_SZ; y++) {
+    st.waterGrid.push([]);
+    for (let x=0; x<GR_SZ; x++) st.waterGrid[y][x] = false;
+  }
+  
+  // Find all water plants and all pipes
+  const waterPlants = [];
+  const allPipes = [];
+  for (let y=0; y<GR_SZ; y++) {
+    for (let x=0; x<GR_SZ; x++) {
+      const cell = st.grid[y][x];
+      if (cell.type === 'waterplant' || cell.type === 'watertower') {
+        waterPlants.push({x, y});
+      }
+      if (cell.pipe === true) {
+        allPipes.push({x, y});
+      }
+    }
+  }
+  
+  // If no water plants, no coverage at all
+  if (waterPlants.length === 0) {
+    allocateWaterToBuildings();
+    return;
+  }
+  
+  // BFS from each water plant along pipes to mark all connected pipes
+  const pipeNetwork = new Set(); // Track only pipes that are connected to water plants
+  const visited = new Set();
+  const queue = [];
+  
+  // Start BFS from each water plant's adjacent pipe tiles (4 cardinal directions only)
+  for (const plant of waterPlants) {
+    // Check adjacent tiles for pipes (only 4 cardinal directions for connection)
+    const directions = [[0,-1], [0,1], [-1,0], [1,0]];
+    for (const [dx, dy] of directions) {
+      const nx = plant.x + dx, ny = plant.y + dy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+        if (st.grid[ny][nx].pipe === true) {
+          const key = `${nx},${ny}`;
+          if (!visited.has(key)) {
+            visited.add(key);
+            queue.push({x: nx, y: ny});
+            pipeNetwork.add(key);
+          }
+        }
+      }
+    }
+  }
+  
+  // BFS along pipe network - only mark the pipes themselves
+  while (queue.length > 0) {
+    const current = queue.shift();
+    
+    // Check all 4 cardinal directions (up, down, left, right)
+    const directions = [[0,-1], [0,1], [-1,0], [1,0]];
+    for (const [dx, dy] of directions) {
+      const nx = current.x + dx, ny = current.y + dy;
+      if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+        const key = `${nx},${ny}`;
+        if (!visited.has(key) && st.grid[ny][nx].pipe === true) {
+          visited.add(key);
+          queue.push({x: nx, y: ny});
+          pipeNetwork.add(key);
+        }
+      }
+    }
+  }
+  
+  // IMPORTANT: Only mark coverage for pipes that are connected to water plants
+  // Water plants themselves do NOT provide coverage - they need pipes!
+  for (const pipeKey of pipeNetwork) {
+    const [pipeX, pipeY] = pipeKey.split(',').map(Number);
+    st.waterGrid[pipeY][pipeX] = true; // The pipe itself has water
+    
+    // Mark adjacent tiles (including diagonals) around connected pipes - 2x range
+    for (let dy=-2; dy<=2; dy++) {
+      for (let dx=-2; dx<=2; dx++) {
+        const nx = pipeX + dx, ny = pipeY + dy;
+        if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+          st.waterGrid[ny][nx] = true;
+        }
+      }
+    }
+  }
+  
+  allocateWaterToBuildings();
+}
+
+function isNearWaterTile(x, y, maxDistance = 2) {
+  // Check if location (x,y) is within maxDistance tiles of a water terrain tile
+  for (let dy = -maxDistance; dy <= maxDistance; dy++) {
+    for (let dx = -maxDistance; dx <= maxDistance; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && nx < GR_SZ && ny >= 0 && ny < GR_SZ) {
+        const distance = Math.abs(dx) + Math.abs(dy); // Manhattan distance
+        if (distance <= maxDistance && st.terrain[ny][nx] === 'water') {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function hasWaterAccess(x,y) {
+  // Check if building at (x,y) has water access
+  // Water flows via pipes, so check if building's own tiles or adjacent tiles have water
+  const bounds = getBuildingBoundsFromCell(x,y);
+  const startX = bounds.startX ?? x;
+  const startY = bounds.startY ?? y;
+  const w = bounds.w || 1;
+  const h = bounds.h || 1;
+
+  if (!st.waterGrid || st.waterGrid.length !== GR_SZ) return false;
+  
+  for (let dy=0; dy<h; dy++) {
+    for (let dx=0; dx<w; dx++) {
+      const cx=startX+dx, cy=startY+dy;
+      
+      // First check if the building's own tile has water coverage (pipe on building)
+      if (st.waterGrid[cy][cx]) return true;
+      
+      // Then check adjacent tiles (including diagonals)
+      for (let ndy=-1; ndy<=1; ndy++) {
+        for (let ndx=-1; ndx<=1; ndx++) {
+          if (ndx===0 && ndy===0) continue;
+          const nx=cx+ndx, ny=cy+ndy;
+          if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            if (st.waterGrid[ny][nx]) return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function buildingHasWater(x,y) {
+  if (!hasWaterAccess(x,y)) return false;
+  const key = getBuildingWaterKey(x,y);
+  if (!key) return false;
+  if (!st.waterShortageBuildings || typeof st.waterShortageBuildings !== 'object') return true;
+  return !st.waterShortageBuildings[key];
 }
 
 function hasSchoolCoverage(x,y) {
@@ -4976,6 +6056,7 @@ function simTk() {
   }
   // Recalculate power grid each tick
   calculatePowerGrid();
+  calculateWaterGrid();
   let rC=0, cC=0, iC=0, pC=0, poC=0, fC=0, sC=0, hC=0, rdC=0; const cntd={};
   for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) {
     const k=`${x},${y}`; if (cntd[k]) continue;
