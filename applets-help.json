@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "title": "Browse the Applet Store",
+      "description": "Discover and install applets from the store. Browse featured apps and find tools that enhance your workflow."
+    },
+    {
+      "title": "Create Apps with Ryo's Chat",
+      "description": "Use Ryo's chat to build custom applets. Simply describe what you want, and Ryo will help you create it."
+    },
+    {
+      "title": "Install Applets",
+      "description": "Click on any applet in the store to install it. Installed applets appear in your applet menu."
+    },
+    {
+      "title": "Run Applets",
+      "description": "Open installed applets from the menu. Each applet runs in its own window."
+    },
+    {
+      "title": "Manage Your Applets",
+      "description": "View and manage all your installed applets. Remove ones you no longer need."
+    },
+    {
+      "title": "Share Your Creations",
+      "description": "Share the applets you create with others. Publish them to the store for everyone to use."
+    }
+  ]
+}
