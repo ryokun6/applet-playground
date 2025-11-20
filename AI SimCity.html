@@ -198,6 +198,17 @@
       <canvas id="canvas" class="rounded" style="image-rendering: pixelated;"></canvas>
     </div>
 
+    <!-- Building info panel for stat view -->
+    <div id="buildingInfoPanel" class="hidden w-64 border-l border-neutral-700 bg-neutral-800 p-3 overflow-y-auto flex-shrink-0">
+      <div class="flex flex-col h-full">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div id="buildingInfoTitle" class="text-sm font-bold text-white flex-1"></div>
+          <button id="closeBuildingInfoBtn" onclick="hideBuildingInfo()" class="text-xs text-neutral-500 hover:text-neutral-300 transition-colors flex-shrink-0">✕</button>
+        </div>
+        <div id="buildingInfoContent" class="text-xs text-neutral-300 space-y-1 flex-1 overflow-y-auto"></div>
+      </div>
+    </div>
+
     <div class="flex flex-shrink-0 relative" style="overflow: visible;">
       <div id="subToolbar" class="hidden absolute right-[calc(100%+1px)] w-14 border-r border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto rounded-lg z-10" style="overflow-x: visible;"></div>
       <div class="w-14 border-l border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto flex-shrink-0" id="mainToolbar" style="overflow-x: visible;">
@@ -233,17 +244,6 @@
           <div id="aiMessage" class="text-sm text-neutral-300 leading-relaxed"></div>
         </div>
         <button id="closeAiBtn" class="text-xs text-neutral-500 hover:text-neutral-300">✕</button>
-      </div>
-    </div>
-  </div>
-  <!-- Building info panel for stat view -->
-  <div id="buildingInfoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 flex-shrink-0">
-    <div class="max-w-md mx-auto">
-      <div class="flex items-start gap-2">
-        <div class="flex-1">
-          <div id="buildingInfoTitle" class="text-sm font-bold text-white mb-2"></div>
-          <div id="buildingInfoContent" class="text-xs text-neutral-300 space-y-1"></div>
-        </div>
       </div>
     </div>
   </div>
@@ -351,14 +351,18 @@ const EMERGENCY_SPEED_MULTIPLIER = 1.2;
 
 // State variables
 let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{},waterGrid:[],waterShortageBuildings:{}};
+let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{},waterGrid:[],waterShortageBuildings:{},residents:{}};
 let nextBuildingId = 1;
+let nextResidentId = 1;
 let showLandValueOverlay = false;
 let showCrimeOverlay = false;
 let showWaterOverlay = false;
 let highlightedBuilding = null;
+let highlightedWorkplace = null;
 let currentInfoType = null;
 let activeSubmenu = null;
+let followedResident = null;
+let lastBuildingView = null; // Store building coordinates for back button
 let isDragging = false, dragStart = null, lastPlaced = null, isScrolling = false, touchStartPos = null, lastTouchPos = null;
 let hoverPos = null;
 let lastZoneBounds = null;
@@ -517,6 +521,338 @@ function allocatePowerToBuildings() {
   st.powerShortageBuildings = shortageMap;
 }
 
+// ===== Resident System =====
+const FIRST_NAMES = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'James', 'Jessica', 'Robert', 'Amanda', 'William', 'Ashley', 'Richard', 'Melissa', 'Joseph', 'Nicole', 'Thomas', 'Michelle', 'Christopher', 'Kimberly', 'Daniel', 'Amy', 'Matthew', 'Angela', 'Anthony', 'Stephanie', 'Mark', 'Rachel', 'Donald', 'Lauren', 'Steven', 'Lisa', 'Paul', 'Nancy', 'Andrew', 'Karen', 'Joshua', 'Betty', 'Kenneth', 'Helen', 'Kevin', 'Sandra', 'Brian', 'Donna', 'George', 'Carol', 'Timothy', 'Ruth', 'Ronald', 'Sharon', 'Jason', 'Michelle', 'Edward', 'Laura', 'Jeffrey', 'Emily', 'Ryan', 'Kimberly', 'Jacob', 'Deborah', 'Gary', 'Amy', 'Nicholas', 'Angela', 'Eric', 'Ashley', 'Jonathan', 'Shirley', 'Stephen', 'Anna', 'Larry', 'Brenda', 'Justin', 'Pamela', 'Scott', 'Emma', 'Brandon', 'Cynthia', 'Benjamin', 'Marie', 'Samuel', 'Janet', 'Frank', 'Catherine', 'Gregory', 'Frances', 'Raymond', 'Christine', 'Alexander', 'Samantha', 'Patrick', 'Debra', 'Jack', 'Rachel', 'Dennis', 'Carolyn', 'Jerry', 'Janet', 'Tyler', 'Maria', 'Aaron', 'Heather', 'Jose', 'Diane', 'Henry', 'Julie', 'Adam', 'Joyce', 'Douglas', 'Victoria', 'Nathan', 'Kelly', 'Zachary', 'Christina', 'Kyle', 'Joan', 'Noah', 'Evelyn', 'Ethan', 'Judith', 'Jeremy', 'Megan', 'Walter', 'Cheryl', 'Christian', 'Andrea', 'Keith', 'Hannah', 'Roger', 'Jacqueline', 'Terry', 'Martha', 'Gerald', 'Gloria', 'Harold', 'Teresa', 'Sean', 'Sara', 'Austin', 'Janice', 'Carl', 'Marie', 'Arthur', 'Julia', 'Lawrence', 'Grace', 'Dylan', 'Judy', 'Jesse', 'Theresa', 'Jordan', 'Madison', 'Bryan', 'Beverly', 'Billy', 'Denise', 'Joe', 'Marilyn', 'Bruce', 'Amber', 'Gabriel', 'Danielle', 'Logan', 'Rose', 'Alan', 'Brittany', 'Juan', 'Diana', 'Wayne', 'Abigail', 'Roy', 'Jane', 'Ralph', 'Lori', 'Randy', 'Mason', 'Louis', 'Ethan', 'Philip', 'Ava', 'Johnny', 'Sophia', 'Bobby', 'Isabella', 'Howard', 'Mia', 'Eugene', 'Charlotte'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson', 'Walker', 'Young', 'Allen', 'King', 'Wright', 'Scott', 'Torres', 'Nguyen', 'Hill', 'Flores', 'Green', 'Adams', 'Nelson', 'Baker', 'Hall', 'Rivera', 'Campbell', 'Mitchell', 'Carter', 'Roberts', 'Gomez', 'Phillips', 'Evans', 'Turner', 'Diaz', 'Parker', 'Cruz', 'Edwards', 'Collins', 'Reyes', 'Stewart', 'Morris', 'Morales', 'Murphy', 'Cook', 'Rogers', 'Gutierrez', 'Ortiz', 'Morgan', 'Cooper', 'Peterson', 'Bailey', 'Reed', 'Kelly', 'Howard', 'Ramos', 'Kim', 'Cox', 'Ward', 'Richardson', 'Watson', 'Brooks', 'Chavez', 'Wood', 'James', 'Bennett', 'Gray', 'Mendoza', 'Ruiz', 'Hughes', 'Price', 'Alvarez', 'Castillo', 'Sanders', 'Patel', 'Myers', 'Long', 'Ross', 'Foster', 'Jimenez', 'Powell', 'Jenkins', 'Perry', 'Russell', 'Sullivan', 'Bell', 'Coleman', 'Butler', 'Henderson', 'Barnes', 'Gonzales', 'Fisher', 'Vasquez', 'Simmons', 'Romero', 'Jordan', 'Patterson', 'Alexander', 'Hamilton', 'Graham', 'Reynolds', 'Griffin', 'Wallace', 'Moreno', 'West', 'Cole', 'Hayes', 'Bryant', 'Herrera', 'Gibson', 'Ellis', 'Tran', 'Medina', 'Aguilar', 'Stevens', 'Murray', 'Ford', 'Castro', 'Marshall', 'Owens', 'Harrison', 'Fernandez', 'Mcdonald', 'Woods', 'Washington', 'Kennedy', 'Wells', 'Vargas', 'Henry', 'Chen', 'Freeman', 'Webb', 'Tucker', 'Guzman', 'Burns', 'Crawford', 'Olson', 'Simpson', 'Porter', 'Hunter', 'Gordon', 'Mendez', 'Silva', 'Shaw', 'Snyder', 'Mason', 'Dixon', 'Munoz', 'Hunt', 'Hicks', 'Holmes', 'Palmer', 'Wagner', 'Black', 'Robertson', 'Boyd', 'Rose', 'Stone', 'Salazar', 'Fox', 'Warren', 'Mills', 'Meyer', 'Rice', 'Schmidt', 'Garza', 'Daniels', 'Ferguson', 'Nichols', 'Stephens', 'Soto', 'Weaver', 'Ryan', 'Gardner', 'Payne', 'Grant', 'Dunn', 'Kelley', 'Spencer', 'Hawkins', 'Arnold', 'Pierce', 'Vazquez', 'Hansen', 'Peters', 'Santos', 'Hart', 'Bradley', 'Knight', 'Elliott', 'Cunningham', 'Duncan', 'Armstrong', 'Hudson', 'Carroll', 'Lane', 'Riley', 'Andrews', 'Alvarado', 'Ray', 'Delgado', 'Berry', 'Perkins', 'Hoffman', 'Johnston', 'Matthews', 'Pena', 'Richards', 'Contreras', 'Willis', 'Carpenter', 'Lawrence', 'Sandoval', 'Guerrero', 'George', 'Chapman', 'Rios', 'Estrada', 'Ortega', 'Watkins', 'Cisneros', 'Reed', 'Bauer', 'Valdez', 'Francis', 'Mclaughlin', 'Lynch', 'Bishop', 'Carr', 'Salinas', 'Zimmerman', 'Douglas', 'Mcdaniel', 'Newton', 'Morrison', 'Fuller', 'Garrett', 'Manning', 'Garner', 'Mcgee', 'Reese', 'Francis', 'Burgess', 'Adkins', 'Goodman', 'Curry', 'Brady', 'Christensen', 'Potter', 'Walton', 'Goodwin', 'Mullins', 'Molina', 'Webster', 'Fischer', 'Campos', 'Avila', 'Sherman', 'Todd', 'Chang', 'Blake', 'Malone', 'Wolf', 'Hodges', 'Juarez', 'Gill', 'Farmer', 'Hines', 'Gallagher', 'Duran', 'Hubbard', 'Cannon', 'Miranda', 'Wang', 'Saunders', 'Tate', 'Mack', 'Hammond', 'Carrillo', 'Townsend', 'Wise', 'Ingram', 'Barton', 'Mejia', 'Ayala', 'Schroeder', 'Hampton', 'Rowe', 'Parsons', 'Frank', 'Waters', 'Strickland', 'Osborne', 'Maxwell', 'Chan', 'Deleon', 'Norman', 'Harrington', 'Casey', 'Patton', 'Logan', 'Bowers', 'Mueller', 'Glover', 'Floyd', 'Hartman', 'Buchanan', 'Cobb', 'French', 'Kramer', 'Mccormick', 'Clarke', 'Tyler', 'Gibbs', 'Moody', 'Conner', 'Sparks', 'Conley', 'Foley', 'Mccarthy', 'Vaughn', 'Rojas', 'Walters', 'Blackburn', 'Dunlap', 'Gould', 'Duffy', 'Vance', 'Herring', 'Mckay', 'Espinoza', 'Rivers', 'Farley', 'Bernard', 'Ashley', 'Friedman', 'Potts', 'Truong', 'Costa', 'Correa', 'Blevins', 'Nixon', 'Clements', 'Fritz', 'Delacruz', 'Higgins', 'Madden', 'Lang', 'Duffy', 'Villa', 'Joyce', 'Daugherty', 'Mccall', 'Morton', 'Stokes', 'Lamb', 'Pacheco', 'Proctor', 'Dillon', 'Hoover', 'Macias', 'Villarreal', 'Booker', 'Cordova', 'Roach', 'Rosario', 'Rubio', 'Cervantes', 'Solis', 'Luna', 'Stanton', 'Swanson', 'Cordero', 'Conway', 'Barrera', 'Travis', 'Hobbs', 'Briggs', 'Shah', 'Roth', 'Frazier', 'Russo', 'Blevins', 'Mcconnell', 'Hendricks', 'Hunt', 'Hoover', 'Reed', 'Marsh', 'Fitzgerald', 'Hines', 'Espinoza', 'Goodwin', 'Madden', 'Mccarthy', 'Dillon', 'Luna', 'Ewing', 'Cantu', 'Spears', 'Sewell', 'Bowman', 'Barrera', 'Mccall', 'Blevins', 'Joyce', 'Mcconnell', 'Hendricks', 'Hunt', 'Hoover', 'Reed', 'Marsh', 'Fitzgerald', 'Hines', 'Espinoza', 'Goodwin', 'Madden', 'Mccarthy', 'Dillon', 'Luna', 'Ewing', 'Cantu', 'Spears', 'Sewell', 'Bowman', 'Barrera', 'Mccall'];
+
+function generateResidentName() {
+  const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+  const lastName = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+  return `${firstName} ${lastName}`;
+}
+
+function generateResidentStory(resident) {
+  const age = resident.age || Math.floor(Math.random() * 40) + 25;
+  const buildingLevel = resident.homeBuildingLevel || 1;
+  const landValue = resident.homeLandValue || 50;
+  const workplaceType = resident.workplace ? resident.workplace.type : null;
+  const occupation = resident.occupation || 'unemployed';
+  
+  const stories = [];
+  
+  // Age-based intro
+  if (age < 30) {
+    stories.push(`At ${age} years old, ${resident.name} is`);
+  } else if (age < 50) {
+    stories.push(`${resident.name}, ${age}, is`);
+  } else {
+    stories.push(`At ${age} years old, ${resident.name} is`);
+  }
+  
+  // Building level and land value context
+  if (buildingLevel === 3 && landValue > 70) {
+    stories.push(`living in an upscale neighborhood`);
+  } else if (buildingLevel >= 2 && landValue > 60) {
+    stories.push(`living in a nice area`);
+  } else if (buildingLevel === 1 && landValue < 40) {
+    stories.push(`living in a modest neighborhood`);
+  } else {
+    stories.push(`living in the city`);
+  }
+  
+  // Work and lifestyle
+  if (workplaceType === 'commercial') {
+    const commercialStories = [
+      `working as a ${occupation} at a local business`,
+      `employed at a nearby commercial establishment`,
+      `working in retail and services`,
+      `managing a small business in the area`
+    ];
+    stories.push(commercialStories[Math.floor(Math.random() * commercialStories.length)]);
+  } else if (workplaceType === 'industrial') {
+    const industrialStories = [
+      `working as a ${occupation} at a manufacturing plant`,
+      `employed in the industrial sector`,
+      `working in production and manufacturing`,
+      `working at a factory nearby`
+    ];
+    stories.push(industrialStories[Math.floor(Math.random() * industrialStories.length)]);
+  } else if (workplaceType === 'police') {
+    const policeStories = [
+      `working as a ${occupation} at the police station`,
+      `serving the community as a ${occupation}`,
+      `employed at the local police department`,
+      `working in law enforcement`
+    ];
+    stories.push(policeStories[Math.floor(Math.random() * policeStories.length)]);
+  } else if (workplaceType === 'fire') {
+    const fireStories = [
+      `working as a ${occupation} at the fire station`,
+      `serving the community as a ${occupation}`,
+      `employed at the local fire department`,
+      `working in emergency services`
+    ];
+    stories.push(fireStories[Math.floor(Math.random() * fireStories.length)]);
+  } else if (workplaceType === 'school') {
+    const schoolStories = [
+      `working as a ${occupation} at the local school`,
+      `educating the next generation as a ${occupation}`,
+      `employed at the school`,
+      `working in education`
+    ];
+    stories.push(schoolStories[Math.floor(Math.random() * schoolStories.length)]);
+  } else if (workplaceType === 'hospital') {
+    const hospitalStories = [
+      `working as a ${occupation} at the hospital`,
+      `caring for the community as a ${occupation}`,
+      `employed at the local hospital`,
+      `working in healthcare`
+    ];
+    stories.push(hospitalStories[Math.floor(Math.random() * hospitalStories.length)]);
+  } else if (workplaceType && workplaceType.startsWith('park')) {
+    const parkStories = [
+      `working as a ${occupation} at the park`,
+      `maintaining the city's green spaces as a ${occupation}`,
+      `employed at the local park`,
+      `working in parks and recreation`
+    ];
+    stories.push(parkStories[Math.floor(Math.random() * parkStories.length)]);
+  } else if (workplaceType === 'coal') {
+    const coalStories = [
+      `working as a ${occupation} at the coal power plant`,
+      `generating electricity for the city as a ${occupation}`,
+      `employed at the power plant`,
+      `working in energy production`
+    ];
+    stories.push(coalStories[Math.floor(Math.random() * coalStories.length)]);
+  } else if (workplaceType === 'nuclear') {
+    const nuclearStories = [
+      `working as a ${occupation} at the nuclear power plant`,
+      `operating the city's nuclear facility as a ${occupation}`,
+      `employed at the nuclear plant`,
+      `working in nuclear energy`
+    ];
+    stories.push(nuclearStories[Math.floor(Math.random() * nuclearStories.length)]);
+  } else if (workplaceType === 'wind') {
+    const windStories = [
+      `working as a ${occupation} at the wind farm`,
+      `maintaining renewable energy infrastructure as a ${occupation}`,
+      `employed at the wind power facility`,
+      `working in renewable energy`
+    ];
+    stories.push(windStories[Math.floor(Math.random() * windStories.length)]);
+  } else if (workplaceType === 'waterplant') {
+    const waterplantStories = [
+      `working as a ${occupation} at the water treatment plant`,
+      `ensuring clean water for the city as a ${occupation}`,
+      `employed at the water treatment facility`,
+      `working in water treatment`
+    ];
+    stories.push(waterplantStories[Math.floor(Math.random() * waterplantStories.length)]);
+  } else if (workplaceType === 'watertower') {
+    const watertowerStories = [
+      `working as a ${occupation} at the water tower`,
+      `maintaining the city's water supply as a ${occupation}`,
+      `employed at the water facility`,
+      `working in water management`
+    ];
+    stories.push(watertowerStories[Math.floor(Math.random() * watertowerStories.length)]);
+  } else {
+    stories.push(`currently seeking employment`);
+  }
+  
+  // Add personal touches
+  const personalTouches = [
+    `They enjoy spending time in local parks when possible.`,
+    `They value the community services available in the area.`,
+    `They appreciate the convenience of living close to work.`,
+    `They hope to see the neighborhood continue to develop.`,
+    `They are active in the local community.`
+  ];
+  
+  if (Math.random() > 0.3) {
+    stories.push(personalTouches[Math.floor(Math.random() * personalTouches.length)]);
+  }
+  
+  return stories.join(' ');
+}
+
+function assignWorkplace(resident, homeX, homeY) {
+  const workplaces = [];
+  for (let y = 0; y < GR_SZ; y++) {
+    for (let x = 0; x < GR_SZ; x++) {
+      const c = st.grid[y][x];
+      // Include commercial, industrial, services, parks, power plants, and water facilities as workplaces
+      if ((c.type === 'commercial' || c.type === 'industrial' || 
+           c.type === 'police' || c.type === 'fire' || 
+           c.type === 'school' || c.type === 'hospital' ||
+           c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind' ||
+           c.type === 'waterplant' || c.type === 'watertower' ||
+           c.type.startsWith('park')) && !c.abandoned && hasRdAcc(x, y)) {
+        workplaces.push({ x, y, type: c.type, level: c.level || 1 });
+      }
+    }
+  }
+  
+  if (workplaces.length === 0) return null;
+  
+  // Randomly assign to any available workplace
+  return workplaces[Math.floor(Math.random() * workplaces.length)];
+}
+
+function calculateResidentIncome(resident) {
+  if (!resident.workplace) return 0;
+  
+  // Base income varies by workplace type
+  let baseIncome = 2000; // Default
+  if (resident.workplace.type === 'commercial') {
+    baseIncome = 2000;
+  } else if (resident.workplace.type === 'industrial') {
+    baseIncome = 2500;
+  } else if (resident.workplace.type === 'police' || resident.workplace.type === 'fire') {
+    baseIncome = 2800; // Emergency services pay well
+  } else if (resident.workplace.type === 'school') {
+    baseIncome = 2400; // Education
+  } else if (resident.workplace.type === 'hospital') {
+    baseIncome = 3200; // Healthcare pays well
+  } else if (resident.workplace.type.startsWith('park')) {
+    baseIncome = 1800; // Parks and recreation
+  } else if (resident.workplace.type === 'coal') {
+    baseIncome = 2600; // Power plant workers
+  } else if (resident.workplace.type === 'nuclear') {
+    baseIncome = 3500; // Nuclear plant workers (highest pay)
+  } else if (resident.workplace.type === 'wind') {
+    baseIncome = 2400; // Wind turbine workers
+  } else if (resident.workplace.type === 'waterplant') {
+    baseIncome = 2700; // Water treatment workers
+  } else if (resident.workplace.type === 'watertower') {
+    baseIncome = 2200; // Water tower workers
+  }
+  
+  const levelMultiplier = resident.workplace.level === 3 ? 1.5 : resident.workplace.level === 2 ? 1.2 : 1.0;
+  const landValueBonus = resident.workplaceLandValue > 70 ? 1.2 : resident.workplaceLandValue > 50 ? 1.1 : 1.0;
+  
+  return Math.floor(baseIncome * levelMultiplier * landValueBonus);
+}
+
+function getWorkplaceTypeName(type) {
+  if (type === 'commercial') return 'Commercial';
+  if (type === 'industrial') return 'Industrial';
+  if (type === 'police') return 'Police Station';
+  if (type === 'fire') return 'Fire Station';
+  if (type === 'school') return 'School';
+  if (type === 'hospital') return 'Hospital';
+  if (type === 'coal') return 'Coal Plant';
+  if (type === 'nuclear') return 'Nuclear Plant';
+  if (type === 'wind') return 'Wind Farm';
+  if (type === 'waterplant') return 'Water Plant';
+  if (type === 'watertower') return 'Water Tower';
+  if (type && type.startsWith('park')) return 'Park';
+  return 'Building';
+}
+
+function getResidentOccupation(workplace) {
+  if (!workplace) return 'Unemployed';
+  
+  if (workplace.type === 'commercial') {
+    const occupations = ['Retail Manager', 'Sales Associate', 'Store Clerk', 'Cashier', 'Customer Service Rep', 'Shop Owner', 'Restaurant Worker', 'Barista'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'industrial') {
+    const occupations = ['Factory Worker', 'Machine Operator', 'Production Supervisor', 'Warehouse Worker', 'Manufacturing Technician', 'Quality Inspector', 'Assembly Worker'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'police') {
+    const occupations = ['Police Officer', 'Detective', 'Dispatcher', 'Administrative Assistant', 'Security Guard'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'fire') {
+    const occupations = ['Firefighter', 'Paramedic', 'Fire Inspector', 'Fire Chief', 'Emergency Responder'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'school') {
+    const occupations = ['Teacher', 'Principal', 'Administrator', 'Librarian', 'Custodian', 'School Nurse', 'Counselor'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'hospital') {
+    const occupations = ['Doctor', 'Nurse', 'Surgeon', 'Administrator', 'Technician', 'Receptionist', 'Pharmacist'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type.startsWith('park')) {
+    const occupations = ['Park Ranger', 'Groundskeeper', 'Maintenance Worker', 'Event Coordinator', 'Tour Guide'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'coal') {
+    const occupations = ['Coal Plant Operator', 'Engineer', 'Maintenance Technician', 'Plant Supervisor', 'Safety Inspector'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'nuclear') {
+    const occupations = ['Nuclear Engineer', 'Reactor Operator', 'Health Physicist', 'Plant Manager', 'Safety Specialist'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'wind') {
+    const occupations = ['Wind Turbine Technician', 'Field Service Engineer', 'Operations Manager', 'Maintenance Worker'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'waterplant') {
+    const occupations = ['Water Treatment Operator', 'Plant Manager', 'Lab Technician', 'Maintenance Worker', 'Quality Control Specialist'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  } else if (workplace.type === 'watertower') {
+    const occupations = ['Water System Operator', 'Maintenance Technician', 'Inspector', 'Facility Manager'];
+    return occupations[Math.floor(Math.random() * occupations.length)];
+  }
+  
+  return 'Worker';
+}
+
+function generateResidentsForBuilding(x, y) {
+  const buildingKey = `${x},${y}`;
+  if (st.residents[buildingKey]) {
+    return st.residents[buildingKey]; // Already generated
+  }
+  
+  const c = st.grid[y][x];
+  if (c.type !== 'residential' || c.abandoned || !hasRdAcc(x, y)) {
+    return [];
+  }
+  
+  const bPR = 10; // Base population per tile
+  const sM = (c.w || 1) * (c.h || 1);
+  const levelMultiplier = c.level === 3 ? 1.5 : (c.level === 2 ? 1.2 : 1);
+  const capacity = Math.floor(bPR * sM * levelMultiplier);
+  
+  const residents = [];
+  const landValue = st.landValue[y] && st.landValue[y][x] !== undefined ? st.landValue[y][x] : 50;
+  
+  for (let i = 0; i < capacity; i++) {
+    const residentId = nextResidentId++;
+    const age = Math.floor(Math.random() * 40) + 25;
+    const workplace = assignWorkplace({}, x, y);
+    const workplaceLandValue = workplace ? (st.landValue[workplace.y] && st.landValue[workplace.y][workplace.x] !== undefined ? st.landValue[workplace.y][workplace.x] : 50) : 50;
+    const occupation = getResidentOccupation(workplace);
+    const income = calculateResidentIncome({ workplace, workplaceLandValue });
+    const spend = Math.floor(income * (0.6 + Math.random() * 0.2)); // 60-80% spending
+    const tax = Math.floor(income * (st.taxRate / 100));
+    
+    // Work hours: 9 AM to 5 PM (8 hours)
+    const workStart = 9;
+    const workEnd = 17;
+    
+    const resident = {
+      id: residentId,
+      name: generateResidentName(),
+      homeBuilding: { x, y },
+      homeBuildingLevel: c.level || 1,
+      homeLandValue: landValue,
+      workplace: workplace,
+      workplaceLandValue: workplaceLandValue,
+      workHours: { start: workStart, end: workEnd },
+      income: income,
+      spend: spend,
+      tax: tax,
+      age: age,
+      occupation: occupation,
+      car: null
+    };
+    
+    resident.story = generateResidentStory(resident);
+    residents.push(resident);
+  }
+  
+  st.residents[buildingKey] = residents;
+  return residents;
+}
+
 // Calculate power generation and consumption statistics
 function calculatePowerStats(includeDetails = false) {
   const snapshot = getPowerSystemSnapshot();
@@ -616,6 +952,7 @@ function initGr(tt='balanced') {
   st.grid=[]; st.terrain=genTerr(tt); st.landValue=[]; st.crime=[]; st.fires=[]; st.cars=[]; st.crimeEvents=[]; st.stationDispatches={};
   st.powerShortageBuildings={};
   st.waterShortageBuildings={};
+  st.residents={};
   for (let y=0; y<GR_SZ; y++) {
     const r=[], vr=[], cr=[];
     for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); }
@@ -640,6 +977,7 @@ function ld() {
         if (!st.terrain) st.terrain=genTerr('balanced'); if (!st.landValue) { st.landValue=[]; for (let y=0; y<GR_SZ; y++) { const vr=[]; for (let x=0; x<GR_SZ; x++) vr.push(50); st.landValue.push(vr); } }
         if (!st.crime) { st.crime=[]; for (let y=0; y<GR_SZ; y++) { const cr=[]; for (let x=0; x<GR_SZ; x++) cr.push(30); st.crime.push(cr); } }
           if (!st.fires) st.fires=[]; if (!st.employment) st.employment=0; if (!st.cars) st.cars=[]; if (!st.crimeEvents) st.crimeEvents=[];
+          if (!st.residents) st.residents={};
           st.stationDispatches={};
           if (st.cars && st.cars.length>0) {
             st.cars.forEach(car => {
@@ -1653,6 +1991,20 @@ function drGr() {
     ctx.restore();
   }
   
+  // Draw highlighted workplace border
+  if (highlightedWorkplace) {
+    ctx.save();
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      highlightedWorkplace.x * CL_SZ + 1,
+      highlightedWorkplace.y * CL_SZ + 1,
+      highlightedWorkplace.w * CL_SZ - 2,
+      highlightedWorkplace.h * CL_SZ - 2
+    );
+    ctx.restore();
+  }
+  
   st.fires.forEach(f => {
     if (f.age < 20) {
       const fx = f.x * CL_SZ;
@@ -1779,6 +2131,9 @@ function drGr() {
   });
   st.cars.forEach(c => {
     ctx.save();
+    
+    // Check if this is a followed resident's car
+    const isFollowed = c.residentId && c.residentId === followedResident;
     
     // Determine car direction for rotation
     let angle = 0; // Default: horizontal (0 degrees)
@@ -1956,6 +2311,33 @@ function drGr() {
       // Regular cars
       ctx.fillStyle = c.color;
       ctx.fillRect(drawX, drawY, 3, 2);
+    }
+    
+    // Draw highlight for followed resident's car
+    if (isFollowed) {
+      ctx.save();
+      // Determine car dimensions
+      let carW = 3, carH = 2;
+      if (c.type === 'fire') {
+        carW = 7; carH = 4;
+      } else if (c.type === 'police') {
+        carW = 5; carH = 4;
+      }
+      
+      ctx.strokeStyle = '#ffeb3b';
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ffeb3b';
+      ctx.strokeRect(drawX - 1, drawY - 1, carW + 2, carH + 2);
+      
+      // Draw a pulsing circle indicator above the car
+      const pulseTime = Date.now() / 500;
+      const pulseSize = 0.5 + Math.sin(pulseTime) * 0.3;
+      ctx.fillStyle = 'rgba(255, 235, 59, 0.8)';
+      ctx.beginPath();
+      ctx.arc(carCenterX, drawY - 4, 3 * pulseSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
     
     ctx.restore();
@@ -6540,6 +6922,9 @@ function simTk() {
   const tB=rC+cC+iC+pC+poC+fC+sC+hC;
   if (st.ticksSinceNews>=20 && tB>5 && !aiReq) { st.ticksSinceNews=0; genNws(); }
     if (Math.random()<0.02 && tB>10) startFire();
+  
+  // Update resident routines (daily schedules, car spawning)
+  updateResidentRoutines();
     if (Math.random()<0.01 && tB>20) startQuake();
     if (Math.random()<0.02 && st.population>50) startCrimeEvent();
     ensureEmergencyCoverage();
@@ -6633,7 +7018,14 @@ function showBuildingInfo(x, y) {
   }[c.type] || '🏗️';
   
   // Format building name
-  const name = c.type.charAt(0).toUpperCase() + c.type.slice(1).replace(/\d+$/, '');
+  let name = c.type.charAt(0).toUpperCase() + c.type.slice(1).replace(/\d+$/, '');
+  
+  // Add level to name for zones
+  if ((c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') && !c.abandoned) {
+    const level = c.level || 0;
+    name = `${name} L${level}`;
+  }
+  
   title.textContent = `${icon} ${name}`;
   
   // Build content
@@ -6644,13 +7036,9 @@ function showBuildingInfo(x, y) {
     statItems.push(statItem('size', `${c.w}×${c.h}`));
   }
   
-  // Level info for zones
-  if (c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') {
-    if (c.abandoned) {
-      statItems.push(statItem('status', 'Abandoned', 'text-red-400'));
-    } else {
-      statItems.push(statItem('level', c.level));
-    }
+  // Status for abandoned zones
+  if ((c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') && c.abandoned) {
+    statItems.push(statItem('status', 'Abandoned', 'text-red-400'));
   }
   
   // Age info
@@ -6674,11 +7062,47 @@ function showBuildingInfo(x, y) {
     statItems.push(statItem('crime', `${crimeLevel} (${crime.toFixed(0)})`, crimeColor));
   }
   
+  // Build the stats HTML
+  let statsHTML = '';
   if (statItems.length > 0) {
-    content.innerHTML = `<div class="flex flex-wrap gap-6 py-2">${statItems.join('')}</div>`;
-  } else {
-    content.innerHTML = '';
+    statsHTML = `<div class="flex flex-wrap gap-6 py-2">${statItems.join('')}</div>`;
   }
+  
+  // For residential buildings, always show residents below stats
+  let residentsHTML = '';
+  if (c.type === 'residential' && !c.abandoned && hasRdAcc(x, y)) {
+    const residents = generateResidentsForBuilding(x, y);
+    if (residents.length > 0) {
+      // Store building coordinates for back button
+      lastBuildingView = { x, y };
+      
+      const residentList = residents.slice(0, 10).map((r, idx) => {
+        const workplaceInfo = r.workplace ? `📍 ${getWorkplaceTypeName(r.workplace.type)}` : '❌ Unemployed';
+        return `
+          <div class="border-b border-neutral-700 py-2 cursor-pointer hover:bg-neutral-700/50 rounded px-2" onclick="showResidentInfo(${r.id})">
+            <div class="font-semibold text-white">${r.name}</div>
+            <div class="text-xs text-neutral-400 mt-1">${workplaceInfo} • $${r.income.toLocaleString()}/mo</div>
+          </div>
+        `;
+      }).join('');
+      
+      const moreText = residents.length > 10 ? `<div class="text-xs text-neutral-500 py-2 text-center">+${residents.length - 10} more residents</div>` : '';
+      
+      residentsHTML = `
+        <div class="border-t border-neutral-700 mt-3 pt-3">
+          <div class="text-xs text-neutral-400 mb-2">${residents.length} resident${residents.length !== 1 ? 's' : ''}</div>
+          <div class="max-h-64 overflow-y-auto">
+            ${residentList}
+            ${moreText}
+          </div>
+          <div class="text-xs text-neutral-500 mt-2">Click on a resident to view details</div>
+        </div>
+      `;
+    }
+  }
+  
+  // Combine stats and residents
+  content.innerHTML = statsHTML + residentsHTML;
   panel.classList.remove('hidden');
   
   // Set highlighted building (get full building bounds from top-left corner)
@@ -6689,6 +7113,7 @@ function showBuildingInfo(x, y) {
     w: bounds.w,
     h: bounds.h
   };
+  highlightedWorkplace = null; // Clear workplace highlight
   drGr(); // Redraw to show highlight
 }
 
@@ -6696,7 +7121,366 @@ function hideBuildingInfo() {
   const panel = document.getElementById('buildingInfoPanel');
   panel.classList.add('hidden');
   highlightedBuilding = null;
+  highlightedWorkplace = null;
+  lastBuildingView = null;
   drGr(); // Redraw to remove highlight
+}
+
+function findResidentById(residentId) {
+  for (const buildingKey in st.residents) {
+    const residents = st.residents[buildingKey];
+    const resident = residents.find(r => r.id === residentId);
+    if (resident) return resident;
+  }
+  return null;
+}
+
+function showResidentInfo(residentId) {
+  const resident = findResidentById(residentId);
+  if (!resident) return;
+  
+  const panel = document.getElementById('buildingInfoPanel');
+  const title = document.getElementById('buildingInfoTitle');
+  const content = document.getElementById('buildingInfoContent');
+  
+  // Set title with back button on the left (X button stays on the right via HTML structure)
+  const backButton = lastBuildingView 
+    ? `<button onclick="showBuildingInfo(${lastBuildingView.x}, ${lastBuildingView.y})" class="text-xs text-neutral-400 hover:text-neutral-200 transition-colors flex items-center gap-1">
+        ← Back
+      </button>`
+    : '';
+  
+  title.innerHTML = backButton;
+  
+  const workplaceText = resident.workplace 
+    ? `📍 ${getWorkplaceTypeName(resident.workplace.type)} (${resident.workplace.x}, ${resident.workplace.y})`
+    : '❌ Unemployed';
+  
+  const workHoursText = resident.workplace 
+    ? `${resident.workHours.start}:00 - ${resident.workHours.end}:00`
+    : 'N/A';
+  
+  // Highlight workplace building if it exists
+  if (resident.workplace) {
+    const bounds = getBuildingBoundsFromCell(resident.workplace.x, resident.workplace.y);
+    highlightedWorkplace = {
+      x: bounds.startX,
+      y: bounds.startY,
+      w: bounds.w,
+      h: bounds.h
+    };
+  } else {
+    highlightedWorkplace = null;
+  }
+  
+  // Keep home building highlighted
+  if (lastBuildingView) {
+    const bounds = getBuildingBoundsFromCell(lastBuildingView.x, lastBuildingView.y);
+    highlightedBuilding = {
+      x: bounds.startX,
+      y: bounds.startY,
+      w: bounds.w,
+      h: bounds.h
+    };
+  }
+  
+  content.innerHTML = `
+    <div class="mb-3">
+      <div class="text-sm font-bold text-white">👤 ${resident.name}</div>
+    </div>
+    <div class="space-y-3">
+      <div class="text-xs text-neutral-400 leading-relaxed">
+        ${resident.story}
+      </div>
+      
+      <div class="border-t border-neutral-700 pt-2">
+        <div class="text-xs font-semibold text-neutral-300 mb-2">Work Details</div>
+        <div class="text-xs text-neutral-400 space-y-1">
+          <div>${workplaceText}</div>
+          <div>Occupation: ${resident.occupation}</div>
+          <div>Work Hours: ${workHoursText}</div>
+        </div>
+      </div>
+      
+      <div class="border-t border-neutral-700 pt-2">
+        <div class="text-xs font-semibold text-neutral-300 mb-2">Financial Info</div>
+        <div class="flex flex-wrap gap-4 text-xs">
+          ${statItem('income', `$${resident.income.toLocaleString()}/mo`, 'text-green-400')}
+          ${statItem('spend', `$${resident.spend.toLocaleString()}/mo`, 'text-yellow-400')}
+          ${statItem('tax', `$${resident.tax.toLocaleString()}/mo`, 'text-red-400')}
+        </div>
+      </div>
+      
+      <div class="border-t border-neutral-700 pt-2">
+        <button onclick="followResident(${resident.id})" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-4 rounded transition-colors">
+          Follow ${resident.name.split(' ')[0]}
+        </button>
+      </div>
+    </div>
+  `;
+  
+  panel.classList.remove('hidden');
+  drGr(); // Redraw to show highlights
+}
+
+function followResident(residentId) {
+  const resident = findResidentById(residentId);
+  if (!resident) return;
+  
+  followedResident = residentId;
+  
+  // Update button to show stop following
+  const panel = document.getElementById('buildingInfoPanel');
+  const content = document.getElementById('buildingInfoContent');
+  const buttons = content.querySelectorAll('button');
+  // Find the follow button (last button in the content)
+  const followButton = Array.from(buttons).find(btn => btn.textContent.includes('Follow'));
+  if (followButton) {
+    followButton.textContent = `Stop Following`;
+    followButton.className = 'w-full bg-red-600 hover:bg-red-700 text-white text-xs py-2 px-4 rounded transition-colors';
+    followButton.onclick = () => stopFollowingResident();
+  }
+  
+  // Create or update car for resident
+  getResidentCar(resident);
+  
+  drGr(); // Redraw to show highlight
+}
+
+function stopFollowingResident() {
+  const currentResidentId = followedResident;
+  followedResident = null;
+  
+  // Update button back if panel is still showing the resident
+  const panel = document.getElementById('buildingInfoPanel');
+  const content = document.getElementById('buildingInfoContent');
+  const buttons = content.querySelectorAll('button');
+  // Find the follow/stop button (last button in the content, excluding back button)
+  const followButton = Array.from(buttons).find(btn => btn.textContent.includes('Following') || btn.textContent.includes('Follow'));
+  if (followButton && currentResidentId) {
+    const resident = findResidentById(currentResidentId);
+    if (resident) {
+      followButton.textContent = `Follow ${resident.name.split(' ')[0]}`;
+      followButton.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-4 rounded transition-colors';
+      followButton.setAttribute('onclick', `followResident(${currentResidentId})`);
+    }
+  }
+  
+  // Update car color
+  const car = st.cars.find(c => c.residentId === currentResidentId);
+  if (car && car.isResidentCar) {
+    car.color = '#808080';
+  }
+  
+  drGr(); // Redraw to remove highlight
+}
+
+function getResidentCar(resident) {
+  // Check if resident already has a car
+  const existingCar = st.cars.find(c => c.residentId === resident.id);
+  if (existingCar) {
+    // Update car color if followed
+    if (followedResident === resident.id) {
+      existingCar.color = '#ffeb3b';
+    }
+    return existingCar;
+  }
+  
+  // Only create car if resident has a workplace
+  if (!resident.workplace) return null;
+  
+  const homeX = resident.homeBuilding.x;
+  const homeY = resident.homeBuilding.y;
+  const workX = resident.workplace.x;
+  const workY = resident.workplace.y;
+  
+  // Find roads near home and workplace
+  const rdNear = [];
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const nx = homeX + dx, ny = homeY + dy;
+      if (nx >= 0 && nx < GR_SZ && ny >= 0 && ny < GR_SZ && st.grid[ny][nx].type === 'road') {
+        rdNear.push({x: nx, y: ny});
+      }
+    }
+  }
+  
+  const rdEnd = [];
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const nx = workX + dx, ny = workY + dy;
+      if (nx >= 0 && nx < GR_SZ && ny >= 0 && ny < GR_SZ && st.grid[ny][nx].type === 'road') {
+        rdEnd.push({x: nx, y: ny});
+      }
+    }
+  }
+  
+  if (rdNear.length === 0 || rdEnd.length === 0) return null;
+  
+  const start = rdNear[Math.floor(Math.random() * rdNear.length)];
+  const end = rdEnd[Math.floor(Math.random() * rdEnd.length)];
+  
+  const path = findPath(start.x, start.y, end.x, end.y);
+  if (!path || path.length < 2) return null;
+  
+  // Determine lane offset
+  let laneOffset = 0;
+  const startCenterX = path[0].x * CL_SZ + 7;
+  const startCenterY = path[0].y * CL_SZ + 7;
+  let startX = startCenterX;
+  let startY = startCenterY;
+  
+  if (path.length >= 2) {
+    const dx = path[1].x - path[0].x;
+    const dy = path[1].y - path[0].y;
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+      laneOffset = dx > 0 ? 5 : -5;
+      startY += laneOffset;
+    } else {
+      laneOffset = dy > 0 ? -5 : 5;
+      startX += laneOffset;
+    }
+  }
+  
+  const src = {x: homeX, y: homeY};
+  const dst = {x: workX, y: workY};
+  const entryDir = getEdgeDirection(src, start);
+  let entryTarget = null;
+  let entering = false;
+  let spawnX = startX;
+  let spawnY = startY;
+  
+  if (entryDir.x !== 0 || entryDir.y !== 0) {
+    entering = true;
+    entryTarget = {x: startX, y: startY};
+    if (Math.abs(entryDir.x) >= Math.abs(entryDir.y) && entryDir.x !== 0) {
+      spawnX = startCenterX + entryDir.x * CAR_EDGE_OFFSET;
+      spawnY = startY;
+    } else if (entryDir.y !== 0) {
+      spawnY = startCenterY + entryDir.y * CAR_EDGE_OFFSET;
+      spawnX = startX;
+    }
+  }
+  
+  const endIdx = path.length - 1;
+  const endNode = path[endIdx];
+  const endCenterX = endNode.x * CL_SZ + 7;
+  const endCenterY = endNode.y * CL_SZ + 7;
+  let exitLaneX = endCenterX;
+  let exitLaneY = endCenterY;
+  
+  if (path.length >= 2) {
+    const dxLast = path[endIdx].x - path[endIdx - 1].x;
+    const dyLast = path[endIdx].y - path[endIdx - 1].y;
+    if (Math.abs(dxLast) > Math.abs(dyLast)) {
+      exitLaneY += dxLast > 0 ? 5 : -5;
+    } else {
+      exitLaneX += dyLast > 0 ? -5 : 5;
+    }
+  }
+  
+  const exitDir = getEdgeDirection(dst, end);
+  let exitLaneTarget = {x: exitLaneX, y: exitLaneY};
+  let exitTarget = null;
+  
+  if (exitDir.x !== 0 || exitDir.y !== 0) {
+    exitTarget = {x: exitLaneX, y: exitLaneY};
+    if (Math.abs(exitDir.x) >= Math.abs(exitDir.y) && exitDir.x !== 0) {
+      exitTarget.x = endCenterX + exitDir.x * CAR_EDGE_OFFSET;
+    } else if (exitDir.y !== 0) {
+      exitTarget.y = endCenterY + exitDir.y * CAR_EDGE_OFFSET;
+    }
+  }
+  
+  // Car color - use a distinct color for followed residents
+  const carColor = followedResident === resident.id ? '#ffeb3b' : '#808080';
+  
+  const car = {
+    x: spawnX,
+    y: spawnY,
+    path: path,
+    pathIdx: 0,
+    color: carColor,
+    type: 'normal',
+    laneOffset: laneOffset,
+    reverse: false,
+    entering: entering,
+    entryTarget: entryTarget,
+    exiting: false,
+    exitLaneTarget: exitLaneTarget,
+    exitTarget: exitTarget,
+    residentId: resident.id,
+    isResidentCar: true
+  };
+  
+  st.cars.push(car);
+  resident.car = car;
+  
+  return car;
+}
+
+function updateResidentRoutines() {
+  // Calculate time of day (0-23 hours) based on tick count
+  // Assuming 12 ticks per year, and each tick represents about 1 month
+  // For daily routines, we'll use a faster cycle: every 24 ticks = 1 day
+  const ticksPerDay = 24;
+  const hourOfDay = Math.floor((st.tickCount % ticksPerDay) * 24 / ticksPerDay);
+  
+  // Update each resident's routine
+  for (const buildingKey in st.residents) {
+    const residents = st.residents[buildingKey];
+    for (const resident of residents) {
+      if (!resident.workplace) continue; // Skip unemployed residents
+      
+      const workStart = resident.workHours.start;
+      const workEnd = resident.workHours.end;
+      
+      // Determine if resident should be traveling or at work/home
+      let shouldBeAtWork = false;
+      let shouldBeTraveling = false;
+      let travelDirection = null; // 'toWork' or 'toHome'
+      
+      if (hourOfDay >= workStart && hourOfDay < workEnd) {
+        // Work hours - should be at work
+        shouldBeAtWork = true;
+      } else if (hourOfDay >= workStart - 1 && hourOfDay < workStart) {
+        // Traveling to work (1 hour before work starts)
+        shouldBeTraveling = true;
+        travelDirection = 'toWork';
+      } else if (hourOfDay >= workEnd && hourOfDay < workEnd + 1) {
+        // Traveling home (1 hour after work ends)
+        shouldBeTraveling = true;
+        travelDirection = 'toHome';
+      }
+      
+      // Check if resident has a car
+      const existingCar = st.cars.find(c => c.residentId === resident.id);
+      
+      if (shouldBeTraveling && !existingCar && followedResident === resident.id) {
+        // Create car for followed resident if they should be traveling
+        getResidentCar(resident);
+      } else if (shouldBeAtWork && existingCar) {
+        // Remove car if resident should be at work (car is parked)
+        // Actually, keep the car but mark it as parked
+        if (existingCar.pathIdx >= existingCar.path.length - 1) {
+          // Car has reached destination, can remove it
+          const carIndex = st.cars.indexOf(existingCar);
+          if (carIndex > -1) {
+            st.cars.splice(carIndex, 1);
+            resident.car = null;
+          }
+        }
+      }
+      
+      // Update car color if followed
+      if (existingCar && followedResident === resident.id) {
+        existingCar.color = '#ffeb3b';
+      } else if (existingCar && existingCar.isResidentCar) {
+        existingCar.color = '#808080';
+      }
+    }
+  }
 }
 </script>
 </body>
