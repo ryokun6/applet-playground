@@ -3736,7 +3736,14 @@ function rebuildBuildingIdsFromGrid() {
 function plcTl(x,y) {
   if (x<0||x>=GR_SZ||y<0||y>=GR_SZ) return; if (!st.selectedTool) return;
   const c=st.grid[y][x], tr=st.terrain[y][x];
-  if (tr==='water'||tr==='cliff') { plySnd('error'); return; }
+  
+  // Allow pipes on water, but nothing else on water/cliff
+  if (st.selectedTool === 'pipe') {
+    if (tr === 'cliff') { plySnd('error'); return; }
+  } else {
+    if (tr === 'water' || tr === 'cliff') { plySnd('error'); return; }
+  }
+
   if (st.selectedTool==='bulldoze') {
     // Check if we're in water tool mode
     const isWaterToolMode = activeSubmenu && activeSubmenu.submenuKey === 'water';
@@ -3760,7 +3767,9 @@ function plcTl(x,y) {
           for (let dx=0; dx<w; dx++) {
             const nx=startX+dx, ny=startY+dy;
             if (nx<GR_SZ && ny<GR_SZ) {
+              const hadPipe = st.grid[ny][nx].pipe;
               st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+              if (hadPipe) st.grid[ny][nx].pipe = true;
               normalizeEmptyCell(nx,ny);
             }
           }
@@ -3784,10 +3793,12 @@ function plcTl(x,y) {
 
       // Roads: always bulldoze a single tile only
       if (c.type==='road') {
+        const hadPipe = st.grid[y][x].pipe;
         st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+        if (hadPipe) st.grid[y][x].pipe = true;
         normalizeEmptyCell(x,y);
         calculatePowerGrid();
-  calculateWaterGrid(); // Recalculate power grid when roads are removed
+        calculateWaterGrid(); // Recalculate power grid when roads are removed
         drGr(); sv();
         return;
       }
@@ -3813,21 +3824,27 @@ function plcTl(x,y) {
         // Single-tile empty zones (fresh or abandoned) can be cleared one cell at a time.
         // Any merged/multi-tile structure should always clear its entire footprint to avoid "shifting" artifacts.
         if (isEmptyZoneCell) {
+          const hadPipe = st.grid[y][x].pipe;
           st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+          if (hadPipe) st.grid[y][x].pipe = true;
           normalizeEmptyCell(x,y);
         } else if (isMultiTileBuilding) {
           for (let dy=0; dy<h; dy++) {
             for (let dx=0; dx<w; dx++) {
               const nx=startX+dx, ny=startY+dy;
               if (nx<GR_SZ && ny<GR_SZ) {
+                const hadPipe = st.grid[ny][nx].pipe;
                 st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                if (hadPipe) st.grid[ny][nx].pipe = true;
                 normalizeEmptyCell(nx,ny);
               }
             }
           }
         } else {
           // All other buildings: only bulldoze the clicked cell
+          const hadPipe = st.grid[y][x].pipe;
           st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+          if (hadPipe) st.grid[y][x].pipe = true;
           normalizeEmptyCell(x,y);
         }
       
@@ -3835,7 +3852,7 @@ function plcTl(x,y) {
       const wasPowerPlant = c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind';
       if (wasPowerPlant) {
         calculatePowerGrid();
-  calculateWaterGrid();
+        calculateWaterGrid();
       }
       
       // Recalculate water grid if a water plant was removed
@@ -3870,7 +3887,9 @@ function plcTl(x,y) {
         for (let dx=0; dx<w; dx++) {
           const nx=startX+dx, ny=startY+dy;
           if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            const hadPipe = st.grid[ny][nx].pipe;
             st.grid[ny][nx]={type:st.selectedTool,age:0,level:1,w:1,h:1,buildingId:parkBuildingId};
+            if (hadPipe) st.grid[ny][nx].pipe = true;
           }
         }
       }
@@ -3879,7 +3898,9 @@ function plcTl(x,y) {
     } else {
       // Normal placement on empty terrain
       const parkBuildingId = nextBuildingId++;
+      const hadPipe = st.grid[y][x].pipe;
       st.grid[y][x]={type:st.selectedTool,age:0,level:1,w:1,h:1,buildingId:parkBuildingId};
+      if (hadPipe) st.grid[y][x].pipe = true;
       // Try to merge with adjacent parks of the same type
       tryMrgPark(x,y);
     }
@@ -3974,7 +3995,9 @@ function plcTl(x,y) {
       for (let dx=0; dx<bw; dx++) {
         const nx = x + dx, ny = y + dy;
         if (nx < GR_SZ && ny < GR_SZ) {
+          const hadPipe = st.grid[ny][nx].pipe;
           st.grid[ny][nx]={type:st.selectedTool,age:0,level:0,w:bw,h:bh,buildingId:buildingId};
+          if (hadPipe) st.grid[ny][nx].pipe = true;
         }
       }
     }
@@ -3982,7 +4005,7 @@ function plcTl(x,y) {
     // Recalculate power grid if a power plant or road was placed
     if (st.selectedTool === 'coal' || st.selectedTool === 'nuclear' || st.selectedTool === 'wind' || st.selectedTool === 'road') {
       calculatePowerGrid();
-  calculateWaterGrid();
+      calculateWaterGrid();
     }
     
     // Recalculate water grid if a water plant or water tower was placed
@@ -5963,7 +5986,9 @@ function tryMrgPark(x,y) {
             for (let dx=0; dx<2; dx++) {
               const nx=x+dx, ny=y-1+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                const hadPipe = st.grid[ny][nx].pipe;
                 st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2,buildingId:buildingId};
+                if (hadPipe) st.grid[ny][nx].pipe = true;
               }
             }
           }
@@ -5982,7 +6007,9 @@ function tryMrgPark(x,y) {
             for (let dx=0; dx<2; dx++) {
               const nx=x+dx, ny=y+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                const hadPipe = st.grid[ny][nx].pipe;
                 st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2,buildingId:buildingId};
+                if (hadPipe) st.grid[ny][nx].pipe = true;
               }
             }
           }
@@ -6008,7 +6035,9 @@ function tryMrgPark(x,y) {
             for (let dx=0; dx<2; dx++) {
               const nx=x-1+dx, ny=y+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                const hadPipe = st.grid[ny][nx].pipe;
                 st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2,buildingId:buildingId};
+                if (hadPipe) st.grid[ny][nx].pipe = true;
               }
             }
           }
@@ -6027,7 +6056,9 @@ function tryMrgPark(x,y) {
             for (let dx=0; dx<2; dx++) {
               const nx=x+dx, ny=y+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                const hadPipe = st.grid[ny][nx].pipe;
                 st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:2,h:2,buildingId:buildingId};
+                if (hadPipe) st.grid[ny][nx].pipe = true;
               }
             }
           }
@@ -6060,7 +6091,9 @@ function tryMrgPark(x,y) {
         for (let dx=0; dx<d.w; dx++) {
           const nx=sx+dx, ny=sy+dy;
           if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+            const hadPipe = st.grid[ny][nx].pipe;
             st.grid[ny][nx]={type:c.type,age:Math.max(st.grid[ny][nx].age,c.age),level:1,w:d.w,h:d.h,buildingId:buildingId};
+            if (hadPipe) st.grid[ny][nx].pipe = true;
           }
         }
       }
@@ -6107,7 +6140,9 @@ function tryMrgTo2x1(x,y) {
       for (let dx=0; dx<target.w; dx++) {
         const nx=topLeftX+dx, ny=topLeftY+dy;
         if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+          const hadPipe = st.grid[ny][nx].pipe;
           st.grid[ny][nx]={type:c.type,age:bestAge,level:bestLevel,w:target.w,h:target.h,abandoned:isAbandoned,buildingId:buildingId};
+          if (hadPipe) st.grid[ny][nx].pipe = true;
         }
       }
     }
@@ -6162,7 +6197,9 @@ function tryMrg(x,y) {
     for (let dy=0; dy<2; dy++) {
       for (let dx=0; dx<2; dx++) {
         const nx=topLeftX+dx, ny=topLeftY+dy;
+        const hadPipe = st.grid[ny][nx].pipe;
         st.grid[ny][nx]={type:c.type,age:mergedAge,level:baseLevel,w:2,h:2,abandoned:false,buildingId:buildingId};
+        if (hadPipe) st.grid[ny][nx].pipe = true;
       }
     }
     return true;
@@ -6200,7 +6237,9 @@ function updFires() {
             for (let dx=0; dx<w; dx++) {
               const nx=bounds.startX+dx, ny=bounds.startY+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                const hadPipe = st.grid[ny][nx].pipe;
                 st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                if (hadPipe) st.grid[ny][nx].pipe = true;
                 normalizeEmptyCell(nx,ny);
               }
             }
@@ -6232,7 +6271,9 @@ function updFires() {
             for (let dx=0; dx<w; dx++) {
               const nx=bounds.startX+dx, ny=bounds.startY+dy;
               if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
+                const hadPipe = st.grid[ny][nx].pipe;
                 st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                if (hadPipe) st.grid[ny][nx].pipe = true;
                 normalizeEmptyCell(nx,ny);
               }
             }
@@ -6345,7 +6386,9 @@ function startQuake() {
           if (nx>=0 && nx<GR_SZ && ny>=0 && ny<GR_SZ) {
             // Only destroy if it's not a road
             if (st.grid[ny][nx].type!=='road') {
+              const hadPipe = st.grid[ny][nx].pipe;
               st.grid[ny][nx]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+              if (hadPipe) st.grid[ny][nx].pipe = true;
               normalizeEmptyCell(nx,ny); // Ensure it's 1x1
             }
           }
