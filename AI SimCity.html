@@ -5235,6 +5235,16 @@ document.addEventListener('keydown', (e) => {
     return counts;
   }
 
+function countTilesOfType(type) {
+  let count = 0;
+  for (let y = 0; y < GR_SZ; y++) {
+    for (let x = 0; x < GR_SZ; x++) {
+      if (st.grid?.[y]?.[x]?.type === type) count++;
+    }
+  }
+  return count;
+}
+
   function getStatsContent(infoType) {
     const cnts = getBuildingCounts();
     const getCount = type => cnts[type] || 0;
@@ -5476,8 +5486,8 @@ document.addEventListener('keydown', (e) => {
     }
     
     // Road maintenance bonus
-    const rdC = getCount('road');
-    roadMaintenanceBonus = Math.floor(rdC * 0.1);
+    const roadTileCount = countTilesOfType('road');
+    roadMaintenanceBonus = Math.floor(roadTileCount * 0.1);
     
     const totalMaintenance = buildingMaintenance + powerPlantMaintenance + infrastructureCost + serviceCosts + crimeExpenses + roadMaintenanceBonus;
     const netIncome = totalIncome - totalMaintenance;
