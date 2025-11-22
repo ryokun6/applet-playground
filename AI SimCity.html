@@ -356,7 +356,7 @@ const EMERGENCY_SPEED_MULTIPLIER = 1.2;
 
 // State variables
 let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
-let st = {cityName:'new city',money:50000,population:0,populationNewsBonus:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{},waterGrid:[],waterShortageBuildings:{},residents:{}};
+let st = {cityName:'new city',money:50000,population:0,populationNewsBonus:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],pendingNews:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{},waterGrid:[],waterShortageBuildings:{},residents:{}};
 let nextBuildingId = 1;
 let nextResidentId = 1;
 let showLandValueOverlay = false;
@@ -372,6 +372,8 @@ let isDragging = false, dragStart = null, lastPlaced = null, isScrolling = false
 let hoverPos = null;
 let lastZoneBounds = null;
 let resizeTimeout;
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+let justPlacedTileOnMobile = false; // Flag to prevent building info panel from showing immediately after placing on mobile
 
 // ===== Power System =====
 function getPowerConsumption(buildingType, level) {
@@ -1935,8 +1937,8 @@ function drGr() {
   if (showCrimeOverlay) drawCrimeOverlay();
   if (showWaterOverlay) drawWaterOverlay();
   
-  // Draw placement preview when hovering
-  if (hoverPos && st.selectedTool && !showLandValueOverlay && !showCrimeOverlay) {
+  // Draw placement preview when hovering (skip on mobile/touch devices)
+  if (hoverPos && st.selectedTool && !showLandValueOverlay && !showCrimeOverlay && !isMobile) {
     const x = hoverPos.x, y = hoverPos.y;
     if (x >= 0 && x < GR_SZ && y >= 0 && y < GR_SZ) {
       if (st.selectedTool === 'bulldoze') {
@@ -4108,6 +4110,33 @@ function plcTl(x,y) {
     if (st.money<cs) { plySnd('error'); return; }
     plySnd('place'); 
     st.money-=cs;
+
+    // Pre-pass: Clear any abandoned multi-tile buildings that will be partially or fully overwritten
+    for (let dy=0; dy<bh; dy++) {
+      for (let dx=0; dx<bw; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < GR_SZ && ny < GR_SZ) {
+          const cell = st.grid[ny][nx];
+          if (cell.type !== 'empty' && cell.abandoned && (cell.w > 1 || cell.h > 1)) {
+            const {startX, startY, w, h} = getBuildingBoundsFromCell(nx, ny);
+            for (let bdy=0; bdy<h; bdy++) {
+              for (let bdx=0; bdx<w; bdx++) {
+                const bx = startX + bdx;
+                const by = startY + bdy;
+                if (bx >= 0 && bx < GR_SZ && by >= 0 && by < GR_SZ) {
+                  const bCell = st.grid[by][bx];
+                  const hadPipe = bCell.pipe;
+                  st.grid[by][bx] = {type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+                  if (hadPipe) st.grid[by][bx].pipe = true;
+                  normalizeEmptyCell(bx, by);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     const buildingId = nextBuildingId++;
     
     // Place the building across all its cells
@@ -4261,6 +4290,7 @@ function handleDragStart(e) {
     touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     isDragging = false;
     isScrolling = false;
+    hoverPos = null; // Clear hover position on mobile to prevent highlight
     // Don't prevent default - allow native scrolling
     return;
   }
@@ -4332,15 +4362,23 @@ function handleDragEnd(e) {
       const isAbandoned = c && c.abandoned;
       const isPipeTool = st.selectedTool === 'pipe';
       
+      // On mobile, when placing tiles, don't show building info panel
+      // Just place the tile directly
       if (st.selectedTool === 'bulldoze') {
         plcTl(pos.x, pos.y);
+        justPlacedTileOnMobile = true;
+        setTimeout(() => { justPlacedTileOnMobile = false; }, 300); // Prevent building info for 300ms after placing
       } else if (isPipeTool) {
         plcTl(pos.x, pos.y);
-      } else if (isOccupied && !isAbandoned) {
-        showBuildingInfo(pos.x, pos.y);
+        justPlacedTileOnMobile = true;
+        setTimeout(() => { justPlacedTileOnMobile = false; }, 300);
       } else if (st.selectedTool) {
+        // Always place tile when tool is selected on mobile (no building info panel)
         plcTl(pos.x, pos.y);
-      } else if (isOccupied) {
+        justPlacedTileOnMobile = true;
+        setTimeout(() => { justPlacedTileOnMobile = false; }, 300);
+      } else if (isOccupied && !justPlacedTileOnMobile) {
+        // Only show building info when no tool is selected and we didn't just place a tile
         showBuildingInfo(pos.x, pos.y);
       }
     }
@@ -6111,10 +6149,10 @@ function cleanupNewsEvents() {
   // Remove all event messages (fire, robbery, earthquake, etc.) - they have emojis
   st.newsEvents = st.newsEvents.filter(ev => !ev.includes('🔥') && !ev.includes('🚨') && !ev.includes('🌎'));
   
-  // Keep only the 3 most recent AI news items
-  const aiNews = st.newsEvents.filter(ev => !ev.includes('Welcome to'));
-  const welcomeMsgs = st.newsEvents.filter(ev => ev.includes('Welcome to'));
-  st.newsEvents = [...welcomeMsgs, ...aiNews.slice(-3)];
+  // Keep only the 5 most recent news items
+  if (st.newsEvents.length > 5) {
+    st.newsEvents = st.newsEvents.slice(-5);
+  }
 }
 
   function parseNewsEffectValue(chunk) {
@@ -6151,20 +6189,41 @@ function cleanupNewsEvents() {
   }
 
 async function genNws() {
+  // If we have pending news, consume it instead of asking AI
+  if (st.pendingNews && st.pendingNews.length > 0) {
+    const ev = st.pendingNews.shift();
+    const m=ev.match(/\(([^)]+)\)/);
+    if (m) applyNewsEffectFromChunk(m[1]);
+    st.newsEvents.push(ev);
+    nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
+    return;
+  }
+
   if (aiReq) return; aiReq=true;
-    cleanupNewsEvents(); // Clean old events and AI news before generating new one
+    cleanupNewsEvents(); // Clean old events before generating new one
     const cnts=getBuildingCounts();
   const ctx=`${st.cityName}, ${st.year}, pop ${st.population}, $${(st.money/1000).toFixed(0)}k, happiness ${st.happiness}, ${cnts.residential||0}R ${cnts.commercial||0}C ${cnts.industrial||0}I`;
-  const prm=`Generate ONE quirky news headline (8 words max) for SimCity game. Context: ${ctx}. Topics: era-specific events (${st.year}s culture/tech), citizen stories, weird happenings, local color, achievements, community events. NO fires, earthquakes, crimes, or disasters. Include brief stat at end like (+200 pop) or (-$2k) or (+5 joy). Be creative and fun. Return ONLY headline.`;
+  const prm=`Generate 3 quirky news headlines (8 words max each) for SimCity game. Context: ${ctx}. Topics: era-specific events (${st.year}s culture/tech), citizen stories, weird happenings, local color, achievements, community events. NO fires, earthquakes, crimes, or disasters. Include brief stat at end like (+200 pop) or (-$2k) or (+5 joy). Be creative and fun. Return ONLY the headlines separated by "|||".`;
     try {
       const r=await fetch('/api/applet-ai', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prm})});
       if (!r.ok) throw new Error('AI request failed');
-      const d=await r.json(); let ev=d.reply||'City continues to grow';
-      ev=ev.replace(/^["']|["']$/g,'').trim();
-      const m=ev.match(/\(([^)]+)\)/);
-      if (m) applyNewsEffectFromChunk(m[1]);
-      st.newsEvents.push(ev);
-      nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
+      const d=await r.json(); 
+      let reply=d.reply||'City continues to grow';
+      reply=reply.replace(/^["']|["']$/g,'').trim();
+      
+      const headlines = reply.split('|||').map(h => h.trim()).filter(h => h.length > 0);
+      
+      if (headlines.length > 0) {
+        if (!st.pendingNews) st.pendingNews = [];
+        st.pendingNews.push(...headlines);
+        
+        // Display the first one immediately
+        const ev = st.pendingNews.shift();
+        const m=ev.match(/\(([^)]+)\)/);
+        if (m) applyNewsEffectFromChunk(m[1]);
+        st.newsEvents.push(ev);
+        nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
+      }
     } catch(e) { console.error('News generation error:',e); } finally { aiReq=false; }
 }
 
@@ -7241,6 +7300,9 @@ setInterval(() => { if (st.speed>0) { updCars(); drGr(); } },50);
 
 // Building info panel for stat view
 function showBuildingInfo(x, y) {
+  // On mobile, don't show building info immediately after placing a tile
+  if (isMobile && justPlacedTileOnMobile) return;
+  
   const c = st.grid[y][x];
   if (!c || c.type === 'empty' || c.type === 'road') return;
   
