@@ -46,6 +46,11 @@
       white-space: pre-wrap; /* Allow wrapping */
       word-break: break-all; /* Break long words */
     }
+      
+      #yearDisplay {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: 'tnum';
+      }
   </style>
   
   <script>
@@ -68,7 +73,7 @@
  
 </head>
 <body>
-  <div class="w-full h-screen bg-neutral-900 text-neutral-100 font-geneva flex flex-col overflow-hidden">
+  <div class="w-full h-screen bg-neutral-900 text-neutral-100 font-geneva flex flex-col overflow-hidden relative">
   <div class="border-b border-neutral-700 bg-neutral-800 px-3 py-2 flex items-center justify-between flex-shrink-0">
     <div class="flex items-center gap-3">
       <button id="menuBtn" class="text-sm text-neutral-300 hover:text-neutral-100 transition-colors">☰</button>
@@ -198,17 +203,6 @@
       <canvas id="canvas" class="rounded" style="image-rendering: pixelated;"></canvas>
     </div>
 
-    <!-- Building info panel for stat view -->
-    <div id="buildingInfoPanel" class="hidden w-64 border-l border-neutral-700 bg-neutral-800 p-3 overflow-y-auto flex-shrink-0">
-      <div class="flex flex-col h-full">
-        <div class="flex items-start justify-between gap-2 mb-2">
-          <div id="buildingInfoTitle" class="text-sm font-bold text-white flex-1"></div>
-          <button id="closeBuildingInfoBtn" onclick="hideBuildingInfo()" class="text-xs text-neutral-500 hover:text-neutral-300 transition-colors flex-shrink-0">✕</button>
-        </div>
-        <div id="buildingInfoContent" class="text-xs text-neutral-300 space-y-1 flex-1 overflow-y-auto"></div>
-      </div>
-    </div>
-
     <div class="flex flex-shrink-0 relative" style="overflow: visible;">
       <div id="subToolbar" class="hidden absolute right-[calc(100%+1px)] w-14 border-r border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto rounded-lg z-10" style="overflow-x: visible;"></div>
       <div class="w-14 border-l border-neutral-800 bg-neutral-900 p-1 flex flex-col gap-1 overflow-y-auto flex-shrink-0" id="mainToolbar" style="overflow-x: visible;">
@@ -248,7 +242,18 @@
     </div>
   </div>
 
-  <div id="infoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 max-h-48 overflow-y-auto flex-shrink-0">
+  <!-- Building info panel for stat view -->
+  <div id="buildingInfoPanel" class="hidden border-t border-b border-neutral-700 bg-neutral-800 p-3 max-h-72 overflow-y-auto flex-shrink-0 absolute bottom-0 left-0 right-0 z-50">
+    <div class="flex flex-col">
+      <div class="flex items-start justify-between gap-2 mb-2">
+        <div id="buildingInfoTitle" class="text-sm font-bold text-white flex-1"></div>
+        <button id="closeBuildingInfoBtn" onclick="hideBuildingInfo()" class="text-xs text-neutral-500 hover:text-neutral-300 transition-colors flex-shrink-0">✕</button>
+      </div>
+      <div id="buildingInfoContent" class="text-xs text-neutral-300 space-y-1 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <div id="infoPanel" class="hidden border-t border-neutral-700 bg-neutral-800 p-3 max-h-48 overflow-y-auto flex-shrink-0 relative z-10">
     <div>
       <div class="flex items-start gap-2 mb-2">
         <div class="flex-1">
@@ -351,7 +356,7 @@ const EMERGENCY_SPEED_MULTIPLIER = 1.2;
 
 // State variables
 let TK_INT = 2000, tkTmr = null, aiReq = false, edtNm = false, nwsIdx = 0, tkrTmr = null, trans = false, nwsQ = [];
-let st = {cityName:'new city',money:50000,population:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{},waterGrid:[],waterShortageBuildings:{},residents:{}};
+let st = {cityName:'new city',money:50000,population:0,populationNewsBonus:0,happiness:70,grid:[],terrain:[],landValue:[],crime:[],crimeEvents:[],selectedTool:null,tickCount:0,speed:3000,rDemand:50,cDemand:50,iDemand:50,year:1950,newsEvents:[],ticksSinceNews:0,fires:[],employment:0,cars:[],zoom:1.5,disastersEnabled:true,stationDispatches:{},taxRate:10,powerGrid:[],powerShortageBuildings:{},waterGrid:[],waterShortageBuildings:{},residents:{}};
 let nextBuildingId = 1;
 let nextResidentId = 1;
 let showLandValueOverlay = false;
@@ -751,6 +756,19 @@ function getWorkplaceTypeName(type) {
   return 'Building';
 }
 
+function getWorkplaceEmoji(type) {
+  if (type === 'commercial') return '💼';
+  if (type === 'industrial') return '🏭';
+  if (type === 'police') return '👮';
+  if (type === 'fire') return '🚒';
+  if (type === 'school') return '🏫';
+  if (type === 'hospital') return '🏥';
+  if (type === 'coal' || type === 'nuclear' || type === 'wind') return '⚡';
+  if (type === 'waterplant' || type === 'watertower') return '💧';
+  if (type && type.startsWith('park')) return '🌳';
+  return '🏢';
+}
+
 function getResidentOccupation(workplace) {
   if (!workplace) return 'Unemployed';
   
@@ -953,6 +971,14 @@ function initGr(tt='balanced') {
   st.powerShortageBuildings={};
   st.waterShortageBuildings={};
   st.residents={};
+  st.populationNewsBonus=0;
+  st.ticksSinceNews=0;
+  st.newsEvents=[];
+  nwsQ=[];
+  nwsIdx=0;
+  trans=false;
+  nextBuildingId=1;
+  nextResidentId=1;
   for (let y=0; y<GR_SZ; y++) {
     const r=[], vr=[], cr=[];
     for (let x=0; x<GR_SZ; x++) { r.push({type:'empty',age:0,level:0,w:1,h:1,buildingId:null}); vr.push(50); cr.push(30); }
@@ -962,53 +988,96 @@ function initGr(tt='balanced') {
   initWaterGrid();
 }
 
+function applyLoadedState(loadedState) {
+  if (!loadedState || !Array.isArray(loadedState.grid) || loadedState.grid.length !== GR_SZ) return false;
+  st = loadedState;
+
+  const ensureNumber = (value, fallback) => (typeof value === 'number' && Number.isFinite(value)) ? value : fallback;
+  const ensureArray = (value) => Array.isArray(value) ? value : [];
+
+  st.cityName = (typeof st.cityName === 'string' && st.cityName.trim().length>0) ? st.cityName : 'new city';
+  st.money = ensureNumber(st.money, 50000);
+  st.population = ensureNumber(st.population, 0);
+  st.happiness = ensureNumber(st.happiness, 70);
+  st.tickCount = ensureNumber(st.tickCount, 0);
+  st.speed = ensureNumber(st.speed, 3000);
+  st.rDemand = ensureNumber(st.rDemand, 50);
+  st.cDemand = ensureNumber(st.cDemand, 50);
+  st.iDemand = ensureNumber(st.iDemand, 50);
+  st.year = ensureNumber(st.year, 1950);
+  st.ticksSinceNews = ensureNumber(st.ticksSinceNews, 0);
+  st.populationNewsBonus = ensureNumber(st.populationNewsBonus, 0);
+  st.employment = ensureNumber(st.employment, 0);
+  st.taxRate = ensureNumber(st.taxRate, 10);
+  st.zoom = ensureNumber(st.zoom, 1);
+  if (typeof st.disastersEnabled !== 'boolean') st.disastersEnabled = true;
+  st.newsEvents = ensureArray(st.newsEvents);
+  st.fires = ensureArray(st.fires);
+  st.crimeEvents = ensureArray(st.crimeEvents);
+  st.cars = ensureArray(st.cars).filter(car => car && typeof car === 'object');
+  st.terrain = (Array.isArray(st.terrain) && st.terrain.length === GR_SZ) ? st.terrain : genTerr('balanced');
+  st.landValue = Array.isArray(st.landValue) ? st.landValue : [];
+  st.crime = Array.isArray(st.crime) ? st.crime : [];
+  st.powerShortageBuildings = (st.powerShortageBuildings && typeof st.powerShortageBuildings === 'object') ? st.powerShortageBuildings : {};
+  st.waterShortageBuildings = (st.waterShortageBuildings && typeof st.waterShortageBuildings === 'object') ? st.waterShortageBuildings : {};
+  st.residents = (st.residents && typeof st.residents === 'object') ? st.residents : {};
+
+  for (let y=0; y<GR_SZ; y++) {
+    if (!Array.isArray(st.grid[y])) st.grid[y]=[];
+    if (!Array.isArray(st.landValue[y])) st.landValue[y]=Array(GR_SZ).fill(50);
+    if (!Array.isArray(st.crime[y])) st.crime[y]=Array(GR_SZ).fill(30);
+    for (let x=0; x<GR_SZ; x++) {
+      if (!Number.isFinite(st.landValue[y][x])) st.landValue[y][x]=50;
+      if (!Number.isFinite(st.crime[y][x])) st.crime[y][x]=30;
+      if (!st.grid[y][x] || typeof st.grid[y][x] !== 'object') {
+        st.grid[y][x]={type:'empty',age:0,level:0,w:1,h:1,buildingId:null};
+      } else {
+        const cell=st.grid[y][x];
+        if (typeof cell.type!=='string') cell.type='empty';
+        if (!Number.isFinite(cell.age)) cell.age=0;
+        if (!Number.isFinite(cell.level)) cell.level=0;
+        if (!Number.isFinite(cell.w) || cell.w<1) cell.w=1;
+        if (!Number.isFinite(cell.h) || cell.h<1) cell.h=1;
+        if (cell.type==='empty') normalizeEmptyCell(x,y);
+      }
+    }
+  }
+
+  rebuildBuildingIdsFromGrid();
+  calculatePowerGrid();
+  calculateWaterGrid();
+
+  st.stationDispatches = {};
+  st.cars.forEach(car => {
+    if (car.stationKey) incrementStationDispatchCount(car.stationKey);
+  });
+
+  let maxResidentId = 0;
+  Object.keys(st.residents).forEach(key => {
+    const residents = Array.isArray(st.residents[key]) ? st.residents[key].filter(r => r && typeof r === 'object') : [];
+    st.residents[key] = residents;
+    residents.forEach(resident => {
+      if (typeof resident.id === 'number' && Number.isFinite(resident.id) && resident.id > maxResidentId) {
+        maxResidentId = resident.id;
+      }
+    });
+  });
+  nextResidentId = maxResidentId + 1;
+  if (!Number.isFinite(nextResidentId) || nextResidentId < 1) nextResidentId = 1;
+
+  if (typeof st.selectedTool !== 'string' || !st.selectedTool) st.selectedTool='road';
+
+  return true;
+}
+
 // ===== Save/Load =====
 function sv() { try { localStorage.setItem('simcity_state',JSON.stringify(st)); } catch(e) {} }
 function ld() {
   try {
-    const s=localStorage.getItem('simcity_state');
+    const s = localStorage.getItem('simcity_state');
     if (s) {
-      const p=JSON.parse(s);
-        if (p.grid && p.grid.length===GR_SZ) {
-        st=p;
-        if (!st.rDemand) st.rDemand=50; if (!st.cDemand) st.cDemand=50; if (!st.iDemand) st.iDemand=50;
-        if (!st.year) st.year=1950; if (!st.newsEvents) st.newsEvents=[]; if (!st.ticksSinceNews) st.ticksSinceNews=0;
-        if (st.taxRate===undefined) st.taxRate=10; // Default 10% tax rate
-        if (!st.terrain) st.terrain=genTerr('balanced'); if (!st.landValue) { st.landValue=[]; for (let y=0; y<GR_SZ; y++) { const vr=[]; for (let x=0; x<GR_SZ; x++) vr.push(50); st.landValue.push(vr); } }
-        if (!st.crime) { st.crime=[]; for (let y=0; y<GR_SZ; y++) { const cr=[]; for (let x=0; x<GR_SZ; x++) cr.push(30); st.crime.push(cr); } }
-          if (!st.fires) st.fires=[]; if (!st.employment) st.employment=0; if (!st.cars) st.cars=[]; if (!st.crimeEvents) st.crimeEvents=[];
-          if (!st.residents) st.residents={};
-          st.stationDispatches={};
-          if (st.cars && st.cars.length>0) {
-            st.cars.forEach(car => {
-              if (car.stationKey) incrementStationDispatchCount(car.stationKey);
-            });
-          }
-        if (!st.zoom) st.zoom=1;
-        if (st.disastersEnabled === undefined) st.disastersEnabled = true;
-        if (!st.powerGrid) initPowerGrid();
-        if (!st.waterGrid) initWaterGrid();
-        if (!st.powerShortageBuildings || typeof st.powerShortageBuildings !== 'object') {
-          st.powerShortageBuildings = {};
-        }
-        if (!st.waterShortageBuildings || typeof st.waterShortageBuildings !== 'object') {
-          st.waterShortageBuildings = {};
-        }
-        for (let y=0; y<GR_SZ; y++) for (let x=0; x<GR_SZ; x++) { 
-          if (!st.grid[y][x].level) st.grid[y][x].level=0; 
-          if (!st.grid[y][x].w) st.grid[y][x].w=1; 
-          if (!st.grid[y][x].h) st.grid[y][x].h=1; 
-          // Normalize empty cells to ensure they're always 1x1
-          if (st.grid[y][x].type==='empty') normalizeEmptyCell(x,y);
-        }
-
-        // Rebuild buildingId metadata after loading to ensure consistent grouping
-        rebuildBuildingIdsFromGrid();
-        // Recalculate power grid after loading
-        calculatePowerGrid();
-  calculateWaterGrid();
-        return true;
-      }
+      const parsed = JSON.parse(s);
+      if (applyLoadedState(parsed)) return true;
     }
   } catch(e) {}
   return false;
@@ -1867,11 +1936,33 @@ function drGr() {
   if (showWaterOverlay) drawWaterOverlay();
   
   // Draw placement preview when hovering
-  if (hoverPos && st.selectedTool && st.selectedTool !== 'bulldoze' && !showLandValueOverlay && !showCrimeOverlay) {
+  if (hoverPos && st.selectedTool && !showLandValueOverlay && !showCrimeOverlay) {
     const x = hoverPos.x, y = hoverPos.y;
     if (x >= 0 && x < GR_SZ && y >= 0 && y < GR_SZ) {
-      // Determine building size
-      let bw = 1, bh = 1;
+      if (st.selectedTool === 'bulldoze') {
+        // Bulldoze mode - highlight target in red
+        cvs.style.cursor = 'crosshair';
+        const c = st.grid[y][x];
+        let bx = x, by = y, bw = 1, bh = 1;
+        
+        // If hovering over a building, highlight the whole building
+        if (c && c.type !== 'empty') {
+          const bounds = getBuildingBoundsFromCell(x, y);
+          bx = bounds.startX;
+          by = bounds.startY;
+          bw = bounds.w;
+          bh = bounds.h;
+        }
+        
+        ctx.strokeStyle = 'rgba(248, 113, 113, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx * CL_SZ, by * CL_SZ, bw * CL_SZ, bh * CL_SZ);
+        ctx.fillStyle = 'rgba(248, 113, 113, 0.3)';
+        ctx.fillRect(bx * CL_SZ, by * CL_SZ, bw * CL_SZ, bh * CL_SZ);
+      } else {
+        // Normal tool placement preview
+        // Determine building size
+        let bw = 1, bh = 1;
       if (st.selectedTool === 'coal' || st.selectedTool === 'nuclear') {
         bw = 2; bh = 2;
       } else if (st.selectedTool === 'wind') {
@@ -1958,7 +2049,20 @@ function drGr() {
         }
       }
       
-      // Draw semi-transparent preview
+      // Set cursor based on validity
+      if (valid) {
+        cvs.style.cursor = 'crosshair';
+      } else {
+        // Use default cursor for roads, help cursor for other invalid placements
+        const c = st.grid[y][x];
+        if (c && c.type === 'road') {
+          cvs.style.cursor = 'default';
+        } else {
+          cvs.style.cursor = 'help'; // Info cursor when invalid (implies clicking will inspect)
+        }
+      }
+      
+      // Draw placement preview if valid
       if (valid) {
         ctx.save();
         const px = x * CL_SZ, py = y * CL_SZ;
@@ -1974,8 +2078,26 @@ function drGr() {
         ctx.strokeRect(px, py, bw * CL_SZ, bh * CL_SZ);
         ctx.restore();
       }
+      // Note: Invalid placement red highlight removed as per request
     }
+  } else if (hoverPos && (showLandValueOverlay || showCrimeOverlay)) {
+    // Stat view mode - set cursor based on building type
+    const x = hoverPos.x, y = hoverPos.y;
+    if (x >= 0 && x < GR_SZ && y >= 0 && y < GR_SZ) {
+      const c = st.grid[y][x];
+      if (c && c.type !== 'empty' && c.type !== 'road') {
+        cvs.style.cursor = 'pointer'; // Pointer cursor for buildings (not roads)
+      } else {
+        cvs.style.cursor = 'default'; // Default cursor for roads and empty tiles
+      }
+    } else {
+      cvs.style.cursor = 'default';
+    }
+  } else {
+    // Reset cursor if no hover or no tool
+    cvs.style.cursor = 'default';
   }
+}
   
   // Draw highlighted building border
   if (highlightedBuilding) {
@@ -3452,13 +3574,13 @@ function shwInfo(title,content,infoType) {
   }
 }
 
-// Format numbers compactly (e.g., $1.5M, $234.5k)
+// Format numbers compactly (e.g., $1.5M, $234.5K)
 function fmtCompact(num) {
   const absNum = Math.abs(num);
   if (absNum >= 1000000) {
     return `${(num/1000000).toFixed(1)}M`;
   } else if (absNum >= 1000) {
-    return `${(num/1000).toFixed(1)}k`;
+    return `${(num/1000).toFixed(1)}K`;
   }
   return num.toString();
 }
@@ -3492,11 +3614,9 @@ function updUI() {
     waterShortageIndicator.style.display = 'none';
   }
   
-  if (!edtNm) {
-    const month = (st.tickCount % 12) + 1;
-    const monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-    document.getElementById('yearDisplay').textContent=`${monthNames[month-1]} ${st.year}`;
-  }
+    if (!edtNm) {
+      document.getElementById('yearDisplay').textContent=`${st.year}`;
+    }
   const mEl=document.getElementById('money');
   if (st.money<0) { mEl.classList.remove('text-white'); mEl.classList.add('text-red-400'); }
   else { mEl.classList.remove('text-red-400'); mEl.classList.add('text-white'); }
@@ -4206,9 +4326,23 @@ function handleDragEnd(e) {
     // If stat view is active, show building info instead of placing tool
     if (showLandValueOverlay || showCrimeOverlay) {
       showBuildingInfo(pos.x, pos.y);
-    } else if (st.selectedTool) {
-      // This was a tap, not a scroll - place a tile
-      plcTl(pos.x, pos.y);
+    } else {
+      const c = st.grid[pos.y][pos.x];
+      const isOccupied = c && c.type !== 'empty';
+      const isAbandoned = c && c.abandoned;
+      const isPipeTool = st.selectedTool === 'pipe';
+      
+      if (st.selectedTool === 'bulldoze') {
+        plcTl(pos.x, pos.y);
+      } else if (isPipeTool) {
+        plcTl(pos.x, pos.y);
+      } else if (isOccupied && !isAbandoned) {
+        showBuildingInfo(pos.x, pos.y);
+      } else if (st.selectedTool) {
+        plcTl(pos.x, pos.y);
+      } else if (isOccupied) {
+        showBuildingInfo(pos.x, pos.y);
+      }
     }
   }
   // Handle desktop mouse drag end
@@ -4220,8 +4354,23 @@ function handleDragEnd(e) {
       // If stat view is active, show building info instead of placing tool
       if (showLandValueOverlay || showCrimeOverlay) {
         showBuildingInfo(pos.x, pos.y);
-      } else if (st.selectedTool) {
-        plcTl(pos.x, pos.y);
+      } else {
+        const c = st.grid[pos.y][pos.x];
+        const isOccupied = c && c.type !== 'empty';
+        const isAbandoned = c && c.abandoned;
+        const isPipeTool = st.selectedTool === 'pipe';
+        
+        if (st.selectedTool === 'bulldoze') {
+          plcTl(pos.x, pos.y);
+        } else if (isPipeTool) {
+          plcTl(pos.x, pos.y);
+        } else if (isOccupied && !isAbandoned) {
+          showBuildingInfo(pos.x, pos.y);
+        } else if (st.selectedTool) {
+          plcTl(pos.x, pos.y);
+        } else if (isOccupied) {
+          showBuildingInfo(pos.x, pos.y);
+        }
       }
     }
   }
@@ -4246,7 +4395,7 @@ cvs.addEventListener('mouseleave', (e) => {
 
 // Track hover for placement preview
 cvs.addEventListener('mousemove', (e) => {
-  if (!isDragging && st.selectedTool && st.selectedTool !== 'bulldoze') {
+  if (!isDragging && (st.selectedTool || showLandValueOverlay || showCrimeOverlay)) {
     const pos = getCanvasPos(e);
     hoverPos = pos;
   } else {
@@ -4884,65 +5033,37 @@ document.getElementById('importFileInput').addEventListener('change', (e) => {
   if (!file) return;
   
   const reader = new FileReader();
-  reader.onload = (event) => {
-    try {
-      const importedState = JSON.parse(event.target.result);
-      if (importedState.grid && importedState.grid.length === GR_SZ) {
-        st = importedState;
-        if (!st.rDemand) st.rDemand = 50;
-        if (!st.cDemand) st.cDemand = 50;
-        if (!st.iDemand) st.iDemand = 50;
-        if (!st.year) st.year = 1990;
-        if (!st.newsEvents) st.newsEvents = [];
-        if (!st.ticksSinceNews) st.ticksSinceNews = 0;
-        if (st.taxRate === undefined) st.taxRate = 10;
-        if (!st.terrain) st.terrain = genTerr('balanced');
-        if (!st.landValue) {
-          st.landValue = [];
-          for (let y = 0; y < GR_SZ; y++) {
-            const vr = [];
-            for (let x = 0; x < GR_SZ; x++) vr.push(50);
-            st.landValue.push(vr);
-          }
-        }
-        if (!st.crime) {
-          st.crime = [];
-          for (let y = 0; y < GR_SZ; y++) {
-            const cr = [];
-            for (let x = 0; x < GR_SZ; x++) cr.push(30);
-            st.crime.push(cr);
-          }
-        }
-        if (!st.fires) st.fires = [];
-        if (!st.employment) st.employment = 0;
-        if (!st.cars) st.cars = [];
-        if (!st.crimeEvents) st.crimeEvents = [];
-        st.stationDispatches = {};
-        if (st.cars && st.cars.length > 0) {
-          st.cars.forEach(car => {
-            if (car.stationKey) incrementStationDispatchCount(car.stationKey);
-          });
-        }
-        if (!st.zoom) st.zoom = 1;
-        if (st.disastersEnabled === undefined) st.disastersEnabled = true;
-        if (!st.powerGrid) initPowerGrid();
-        sv();
+    reader.onload = (event) => {
+      try {
+        const importedState = JSON.parse(event.target.result);
+        if (followedResident !== null) stopFollowingResident();
+        highlightedBuilding = null;
+        highlightedWorkplace = null;
+        lastBuildingView = null;
+        if (applyLoadedState(importedState)) {
         if (tkTmr) clearInterval(tkTmr);
         if (st.speed > 0) {
           TK_INT = st.speed;
           tkTmr = setInterval(simTk, TK_INT);
-          updNwsTk();
-        } else {
-          updNwsTk();
         }
-        drGr();
-        updUI();
+        nwsQ = [];
+        trans = false;
+        const buildingInfoPanel = document.getElementById('buildingInfoPanel');
+        if (buildingInfoPanel) buildingInfoPanel.classList.add('hidden');
+        forceCloseSubmenu();
         document.getElementById('menu').classList.add('hidden');
         document.getElementById('aiPanel').classList.add('hidden');
         document.getElementById('infoPanel').classList.add('hidden');
         currentInfoType = null;
         setLandValueOverlay(false);
         setCrimeOverlay(false);
+        setWaterOverlay(false);
+        drGr();
+        updUI();
+        updNwsTk();
+        const savedTool = st.selectedTool || 'road';
+        selTl(savedTool);
+        sv();
         setTimeout(centerCanvas, 100);
       } else {
         alert('Invalid city file format');
@@ -4977,15 +5098,26 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
   const inputValue = document.getElementById('newCityName').value.trim();
   const nm = inputValue || generateRandomCityName(), tr=document.getElementById('terrainType').value, df=document.getElementById('difficulty').value;
   let mn=50000; if (df==='easy') mn=100000; else if (df==='hard') mn=20000;
+  if (followedResident!==null) stopFollowingResident();
+  highlightedBuilding=null;
+  highlightedWorkplace=null;
+  lastBuildingView=null;
   aiReq=false; initGr(tr); st.money=mn; st.population=0; st.happiness=70; st.tickCount=0; st.cityName=nm; st.rDemand=50; st.cDemand=50; st.iDemand=50; st.year=1950; st.newsEvents=['Welcome to '+nm+'!']; st.ticksSinceNews=0; st.employment=0; st.taxRate=10;
+  nwsQ=[]; trans=false;
   if (!st.zoom) st.zoom=1;
-  drGr(); updUI(); updNwsTk(); sv();
+  const buildingInfoPanel=document.getElementById('buildingInfoPanel');
+  if (buildingInfoPanel) buildingInfoPanel.classList.add('hidden');
+  forceCloseSubmenu();
+  document.getElementById('menu').classList.add('hidden');
   document.getElementById('newGamePanel').classList.add('hidden');
   document.getElementById('aiPanel').classList.add('hidden');
   document.getElementById('infoPanel').classList.add('hidden');
   currentInfoType = null;
   setLandValueOverlay(false);
   setCrimeOverlay(false);
+  setWaterOverlay(false);
+  drGr(); updUI(); updNwsTk();
+  selTl('road'); sv();
   setTimeout(centerCanvas, 100);
 });
 
@@ -4997,7 +5129,7 @@ document.getElementById('aiSuggestBtn').addEventListener('click', async () => {
   setWaterOverlay(false);
   const pnl=document.getElementById('aiPanel'), msg=document.getElementById('aiMessage');
   pnl.classList.remove('hidden'); msg.innerHTML='<span class="text-neutral-500">thinking...</span>';
-  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
+  const cnts=getBuildingCounts();
   const prm=`You are an AI mayor advisor for a SimCity-like game. Analyze the current city state and give 2-3 SHORT, actionable suggestions (1-2 sentences total).\n\nCurrent city stats:\n- Money: $${st.money.toLocaleString()}\n- Population: ${st.population}\n- Happiness: ${st.happiness}/100\n- Buildings: ${JSON.stringify(cnts)}\n- RCI Demand: R=${st.rDemand}% C=${st.cDemand}% I=${st.iDemand}%\n\nAvailable building types: road, residential, commercial, industrial, park, police, fire, school, hospital\n\nGive practical advice based on what's missing or unbalanced. Keep it brief and conversational.`;
   try {
     const r=await fetch('/api/applet-ai', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prm})});
@@ -5018,14 +5150,56 @@ document.getElementById('closeInfoBtn').addEventListener('click', () => {
   setWaterOverlay(false);
 });
 
-function statItem(label, value, colorClass = '') {
-  return `<div class="flex flex-col flex-shrink-0"><div class="text-xs text-neutral-400">${label}</div><div class="${colorClass}">${value}</div></div>`;
-}
+// ESC key to close panels
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const buildingInfoPanel = document.getElementById('buildingInfoPanel');
+    const infoPanel = document.getElementById('infoPanel');
+    
+    // Close building info panel if open
+    if (buildingInfoPanel && !buildingInfoPanel.classList.contains('hidden')) {
+      hideBuildingInfo();
+      e.preventDefault();
+      return;
+    }
+    
+    // Close stat info panel if open
+    if (infoPanel && !infoPanel.classList.contains('hidden')) {
+      plySnd('click');
+      infoPanel.classList.add('hidden');
+      currentInfoType = null;
+      setLandValueOverlay(false);
+      setCrimeOverlay(false);
+      setWaterOverlay(false);
+      e.preventDefault();
+    }
+  }
+});
 
-function getStatsContent(infoType) {
-  const cnts = {};
-  st.grid.flat().forEach(c => cnts[c.type] = (cnts[c.type] || 0) + 1);
-  const getCount = type => cnts[type] || 0;
+  function statItem(label, value, colorClass = '') {
+    return `<div class="flex flex-col flex-shrink-0"><div class="text-xs text-neutral-400">${label}</div><div class="${colorClass}">${value}</div></div>`;
+  }
+  
+  function getBuildingCounts() {
+    const counts = {};
+    for (let y = 0; y < GR_SZ; y++) {
+      for (let x = 0; x < GR_SZ; x++) {
+        const cell = st.grid?.[y]?.[x];
+        if (!cell || !cell.type || cell.type === 'empty') continue;
+        if (!isTopLeftCell(x, y)) continue;
+        counts[cell.type] = (counts[cell.type] || 0) + 1;
+      }
+    }
+    const totalParks = Object.entries(counts).reduce((sum, [type, count]) => {
+      return (typeof type === 'string' && type.startsWith('park')) ? sum + count : sum;
+    }, 0);
+    counts.park = totalParks;
+    return counts;
+  }
+
+  function getStatsContent(infoType) {
+    const cnts = getBuildingCounts();
+    const getCount = type => cnts[type] || 0;
   
   let content = '';
   let title = '';
@@ -5056,7 +5230,7 @@ function getStatsContent(infoType) {
         </div>
         <div class="h-px w-full bg-neutral-700"></div>
         <div>
-          <div class="text-xs text-neutral-500 mb-1">⚡ Power</div>
+          <div class="text-xs text-neutral-500 mb-1">Power</div>
           <div class="flex flex-wrap gap-6 py-2">
             ${statItem('generation', `+${powerStats.totalPowerGeneration}`, 'text-green-500')}
             ${statItem('consumption', `-${powerStats.totalPowerConsumption}`, 'text-red-500')}
@@ -5070,7 +5244,7 @@ function getStatsContent(infoType) {
         </div>
         <div class="h-px w-full bg-neutral-700"></div>
         <div>
-          <div class="text-xs text-neutral-500 mb-1">💧 Water</div>
+          <div class="text-xs text-neutral-500 mb-1">Water</div>
           <div class="flex flex-wrap gap-6 py-2">
             ${statItem('generation', `+${waterStats.totalWaterGeneration}`, 'text-green-500')}
             ${statItem('consumption', `-${waterStats.totalWaterConsumption}`, 'text-red-500')}
@@ -5943,27 +6117,55 @@ function cleanupNewsEvents() {
   st.newsEvents = [...welcomeMsgs, ...aiNews.slice(-3)];
 }
 
+  function parseNewsEffectValue(chunk) {
+    if (!chunk) return 0;
+    const normalized = chunk.replace(/,/g, '').trim();
+    const match = normalized.match(/([+-])?\s*\$?\s*(\d+(?:\.\d+)?)/);
+    if (!match) return 0;
+    const sign = match[1] === '-' ? -1 : 1;
+    let value = parseFloat(match[2]);
+    if (!Number.isFinite(value)) return 0;
+    if (/[kK]/.test(normalized)) value *= 1000;
+    else if (/[mM]/.test(normalized)) value *= 1000000;
+    return Math.round(value * sign);
+  }
+
+  function applyNewsEffectFromChunk(chunk) {
+    if (!chunk) return;
+    const delta = parseNewsEffectValue(chunk);
+    if (delta === 0) return;
+    const lower = chunk.toLowerCase();
+    if (lower.includes('pop')) {
+      if (!Number.isFinite(st.populationNewsBonus)) st.populationNewsBonus = 0;
+      st.populationNewsBonus += delta;
+      st.population = Math.max(0, st.population + delta);
+    } else if (lower.includes('joy') || lower.includes('happiness')) {
+      st.happiness = Math.max(0, Math.min(100, st.happiness + delta));
+    } else {
+      const moneyKeywords = ['money','funds','budget','cash','treasury'];
+      const hasMoneyKeyword = chunk.includes('$') || moneyKeywords.some(k => lower.includes(k));
+      if (hasMoneyKeyword) {
+        st.money = Math.max(0, st.money + delta);
+      }
+    }
+  }
+
 async function genNws() {
   if (aiReq) return; aiReq=true;
-  cleanupNewsEvents(); // Clean old events and AI news before generating new one
-  const cnts={}; st.grid.flat().forEach(c => cnts[c.type]=(cnts[c.type]||0)+1);
+    cleanupNewsEvents(); // Clean old events and AI news before generating new one
+    const cnts=getBuildingCounts();
   const ctx=`${st.cityName}, ${st.year}, pop ${st.population}, $${(st.money/1000).toFixed(0)}k, happiness ${st.happiness}, ${cnts.residential||0}R ${cnts.commercial||0}C ${cnts.industrial||0}I`;
   const prm=`Generate ONE quirky news headline (8 words max) for SimCity game. Context: ${ctx}. Topics: era-specific events (${st.year}s culture/tech), citizen stories, weird happenings, local color, achievements, community events. NO fires, earthquakes, crimes, or disasters. Include brief stat at end like (+200 pop) or (-$2k) or (+5 joy). Be creative and fun. Return ONLY headline.`;
-  try {
-    const r=await fetch('/api/applet-ai', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prm})});
-    if (!r.ok) throw new Error('AI request failed');
-    const d=await r.json(); let ev=d.reply||'City continues to grow';
-    ev=ev.replace(/^["']|["']$/g,'').trim();
-    const m=ev.match(/\(([^)]+)\)/);
-    if (m) {
-      const ch=m[1];
-      if (ch.includes('pop')) { const vl=parseInt(ch.match(/-?\d+/)?.[0]||0); st.population=Math.max(0,st.population+vl); }
-      else if (ch.includes('$')||ch.includes('k')) { const vl=parseInt(ch.match(/-?\d+/)?.[0]||0), mt=ch.includes('k')?1000:1; st.money+=vl*mt; }
-      else if (ch.includes('joy')||ch.includes('happiness')) { const vl=parseInt(ch.match(/-?\d+/)?.[0]||0); st.happiness=Math.max(0,Math.min(100,st.happiness+vl)); }
-    }
-    st.newsEvents.push(ev);
-    nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
-  } catch(e) { console.error('News generation error:',e); } finally { aiReq=false; }
+    try {
+      const r=await fetch('/api/applet-ai', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:prm})});
+      if (!r.ok) throw new Error('AI request failed');
+      const d=await r.json(); let ev=d.reply||'City continues to grow';
+      ev=ev.replace(/^["']|["']$/g,'').trim();
+      const m=ev.match(/\(([^)]+)\)/);
+      if (m) applyNewsEffectFromChunk(m[1]);
+      st.newsEvents.push(ev);
+      nwsQ.push(ev); if (!trans && st.speed>0) shwNxtNws();
+    } catch(e) { console.error('News generation error:',e); } finally { aiReq=false; }
 }
 
 function tryMrgPark(x,y) {
@@ -6783,8 +6985,10 @@ function simTk() {
       nP+=Math.floor(bPR*sM*lM);
     }
   }
-  st.population=nP;
-  const jA=cC*5+iC*8, jN=nP*0.6;
+  if (!Number.isFinite(st.populationNewsBonus)) st.populationNewsBonus=0;
+  const effectivePopulation=Math.max(0,nP+(st.populationNewsBonus||0));
+  st.population=effectivePopulation;
+  const jA=cC*5+iC*8, jN=effectivePopulation*0.6;
   if (jA<=0 || jN<=0) st.employment=0;
   else st.employment=Math.min(100,Math.floor((Math.min(jA,jN)/jN)*100));
   
@@ -7038,7 +7242,7 @@ setInterval(() => { if (st.speed>0) { updCars(); drGr(); } },50);
 // Building info panel for stat view
 function showBuildingInfo(x, y) {
   const c = st.grid[y][x];
-  if (!c || c.type === 'empty') return;
+  if (!c || c.type === 'empty' || c.type === 'road') return;
   
   const panel = document.getElementById('buildingInfoPanel');
   const title = document.getElementById('buildingInfoTitle');
@@ -7057,7 +7261,12 @@ function showBuildingInfo(x, y) {
     'police': '👮',
     'fire': '🚒',
     'school': '🏫',
-    'hospital': '🏥'
+    'hospital': '🏥',
+    'coal': '⚡',
+    'nuclear': '☢️',
+    'wind': '💨',
+    'waterplant': '🏭',
+    'watertower': '🗼'
   }[c.type] || '🏗️';
   
   // Format building name
@@ -7071,33 +7280,69 @@ function showBuildingInfo(x, y) {
   
   title.textContent = `${icon} ${name}`;
   
-  // Build content
+  // Build content - always show in order: size, age, land value, other values
   let statItems = [];
   
-  // Size info for multi-tile buildings
-  if (c.w > 1 || c.h > 1) {
-    statItems.push(statItem('size', `${c.w}×${c.h}`));
-  }
+  // 1. Size - always show
+  const w = c.w || 1;
+  const h = c.h || 1;
+  statItems.push(statItem('size', `${w}⨯${h}`));
   
-  // Status for abandoned zones
-  if ((c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') && c.abandoned) {
-    statItems.push(statItem('status', 'Abandoned', 'text-red-400'));
-  }
-  
-  // Age info
+  // 2. Age - show if defined
   if (c.age !== undefined) {
     const years = Math.floor(c.age / 12);
     statItems.push(statItem('age', `${years} year${years !== 1 ? 's' : ''}`));
   }
   
-  // Land value and crime for this tile
+  // 3. Land value - always show
   const landValue = st.landValue[y] && st.landValue[y][x] !== undefined ? st.landValue[y][x] : 50;
-  const crime = st.crime[y] && st.crime[y][x] !== undefined ? st.crime[y][x] : 30;
+  const lvColor = landValue >= 80 ? 'text-green-400' : landValue >= 50 ? 'text-yellow-400' : 'text-orange-400';
+  statItems.push(statItem('land value', landValue.toFixed(0), lvColor));
   
-  if (showLandValueOverlay) {
-    const lvColor = landValue >= 80 ? 'text-green-400' : landValue >= 50 ? 'text-yellow-400' : 'text-orange-400';
-    statItems.push(statItem('land value', landValue.toFixed(0), lvColor));
+  // 4. Other values - status, maintenance, income, etc.
+  // Status for abandoned zones
+  if ((c.type === 'residential' || c.type === 'commercial' || c.type === 'industrial') && c.abandoned) {
+    statItems.push(statItem('status', 'Abandoned', 'text-red-400'));
   }
+  
+  // Cost and maintenance for parks and service buildings
+  if (c.type && c.type.startsWith('park')) {
+    const size = w * h;
+    const maintenance = 4 * size; // $4 per tile per month
+    statItems.push(statItem('maintenance', `-$${maintenance}/mo`, 'text-red-400'));
+    
+    // Calculate tourism income
+    const baseTourism = 6;
+    const populationMultiplier = Math.min(3.0, 1 + (st.population / 3000));
+    const happinessMultiplier = 0.7 + (st.happiness / 143);
+    const tourismIncome = Math.floor(baseTourism * size * populationMultiplier * happinessMultiplier);
+    statItems.push(statItem('tourism income', `+$${tourismIncome}/mo`, 'text-green-400'));
+  } else if (c.type === 'police') {
+    statItems.push(statItem('maintenance', '-$25/mo', 'text-red-400'));
+    statItems.push(statItem('coverage', '8-tile radius', 'text-blue-400'));
+  } else if (c.type === 'fire') {
+    statItems.push(statItem('maintenance', '-$25/mo', 'text-red-400'));
+  } else if (c.type === 'school') {
+    statItems.push(statItem('maintenance', '-$40/mo', 'text-red-400'));
+    statItems.push(statItem('coverage', '8-tile radius', 'text-blue-400'));
+  } else if (c.type === 'hospital') {
+    statItems.push(statItem('maintenance', '-$60/mo', 'text-red-400'));
+  } else if (c.type === 'coal' || c.type === 'nuclear' || c.type === 'wind') {
+    const size = w * h;
+    const maintenance = (POWER_PLANT_MAINTENANCE[c.type] || 0) * size;
+    const generation = POWER_GENERATION[c.type] || 0;
+    statItems.push(statItem('maintenance', `-$${maintenance}/mo`, 'text-red-400'));
+    statItems.push(statItem('generation', `+${generation}`, 'text-green-400'));
+  } else if (c.type === 'waterplant' || c.type === 'watertower') {
+    const size = w * h;
+    const maintenance = (WATER_PLANT_MAINTENANCE[c.type] || 0) * size;
+    const generation = WATER_GENERATION[c.type] || 0;
+    statItems.push(statItem('maintenance', `-$${maintenance}/mo`, 'text-red-400'));
+    statItems.push(statItem('generation', `+${generation}`, 'text-green-400'));
+  }
+  
+  // Crime overlay (if active)
+  const crime = st.crime[y] && st.crime[y][x] !== undefined ? st.crime[y][x] : 30;
   
   if (showCrimeOverlay) {
     const crimeColor = crime >= 70 ? 'text-red-400' : crime >= 30 ? 'text-yellow-400' : 'text-green-400';
@@ -7119,22 +7364,22 @@ function showBuildingInfo(x, y) {
       // Store building coordinates for back button
       lastBuildingView = { x, y };
       
-      const residentList = residents.slice(0, 10).map((r, idx) => {
-        const workplaceInfo = r.workplace ? `📍 ${getWorkplaceTypeName(r.workplace.type)}` : '❌ Unemployed';
+      const residentList = residents.slice(0, 20).map((r, idx) => {
+        const workplaceEmoji = r.workplace ? getWorkplaceEmoji(r.workplace.type) : '❌';
         return `
-          <div class="border-b border-neutral-700 py-2 cursor-pointer hover:bg-neutral-700/50 rounded px-2" onclick="showResidentInfo(${r.id})">
-            <div class="font-semibold text-white">${r.name}</div>
-            <div class="text-xs text-neutral-400 mt-1">${workplaceInfo} • $${r.income.toLocaleString()}/mo</div>
+          <div class="inline-flex items-center gap-1.5 bg-neutral-700/50 hover:bg-neutral-700 rounded-full px-2.5 py-1 cursor-pointer transition-colors text-xs" onclick="showResidentInfo(${r.id}, ${x}, ${y})">
+            <span class="font-medium text-white">${r.name}</span>
+            <span>${workplaceEmoji}</span>
           </div>
         `;
       }).join('');
       
-      const moreText = residents.length > 10 ? `<div class="text-xs text-neutral-500 py-2 text-center">+${residents.length - 10} more residents</div>` : '';
+      const moreText = residents.length > 20 ? `<div class="inline-flex items-center bg-neutral-700/50 rounded-full px-2.5 py-1 text-xs text-neutral-500">+${residents.length - 20} more</div>` : '';
       
       residentsHTML = `
         <div class="border-t border-neutral-700 mt-3 pt-3">
           <div class="text-xs text-neutral-400 mb-2">${residents.length} resident${residents.length !== 1 ? 's' : ''}</div>
-          <div class="max-h-64 overflow-y-auto">
+          <div class="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto">
             ${residentList}
             ${moreText}
           </div>
@@ -7178,8 +7423,29 @@ function findResidentById(residentId) {
   return null;
 }
 
-function showResidentInfo(residentId) {
-  const resident = findResidentById(residentId);
+function showResidentInfo(residentId, buildingX, buildingY) {
+  // Use provided building coordinates or fall back to lastBuildingView
+  const bX = buildingX !== undefined ? buildingX : (lastBuildingView ? lastBuildingView.x : null);
+  const bY = buildingY !== undefined ? buildingY : (lastBuildingView ? lastBuildingView.y : null);
+  
+  let resident = null;
+  
+  // Try to find resident directly from the building if coordinates are provided
+  if (bX !== null && bY !== null) {
+    // Regenerate residents for the building to ensure we have the latest data
+    const residents = generateResidentsForBuilding(bX, bY);
+    resident = residents.find(r => r.id === residentId);
+    // Also ensure lastBuildingView is set for back button
+    if (!lastBuildingView) {
+      lastBuildingView = { x: bX, y: bY };
+    }
+  }
+  
+  // Fall back to searching all buildings if not found
+  if (!resident) {
+    resident = findResidentById(residentId);
+  }
+  
   if (!resident) return;
   
   const panel = document.getElementById('buildingInfoPanel');
@@ -7196,7 +7462,7 @@ function showResidentInfo(residentId) {
   title.innerHTML = backButton;
   
   const workplaceText = resident.workplace 
-    ? `📍 ${getWorkplaceTypeName(resident.workplace.type)} (${resident.workplace.x}, ${resident.workplace.y})`
+    ? `${getWorkplaceEmoji(resident.workplace.type)} ${getWorkplaceTypeName(resident.workplace.type)} (${resident.workplace.x}, ${resident.workplace.y})`
     : '❌ Unemployed';
   
   const workHoursText = resident.workplace 
@@ -7227,9 +7493,21 @@ function showResidentInfo(residentId) {
     };
   }
   
+  const isFollowing = followedResident === resident.id;
+  const followButtonText = isFollowing ? 'Unfollow' : 'Follow';
+  const followButtonClass = isFollowing 
+    ? 'bg-red-600 hover:bg-red-700 text-white text-xs py-1.5 px-3 rounded transition-colors flex-shrink-0'
+    : 'bg-blue-600 hover:bg-blue-700 text-white text-xs py-1.5 px-3 rounded transition-colors flex-shrink-0';
+  const followButtonAction = isFollowing 
+    ? `stopFollowingResident()`
+    : `followResident(${resident.id})`;
+  
   content.innerHTML = `
-    <div class="mb-3">
-      <div class="text-sm font-bold text-white">👤 ${resident.name}</div>
+    <div class="mb-3 flex items-center justify-between gap-2">
+      <div class="text-sm font-bold text-white">${resident.name}</div>
+      <button onclick="${followButtonAction}" class="${followButtonClass}">
+        ${followButtonText}
+      </button>
     </div>
     <div class="space-y-3">
       <div class="text-xs text-neutral-400 leading-relaxed">
@@ -7253,12 +7531,6 @@ function showResidentInfo(residentId) {
           ${statItem('tax', `$${resident.tax.toLocaleString()}/mo`, 'text-red-400')}
         </div>
       </div>
-      
-      <div class="border-t border-neutral-700 pt-2">
-        <button onclick="followResident(${resident.id})" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-4 rounded transition-colors">
-          Follow ${resident.name.split(' ')[0]}
-        </button>
-      </div>
     </div>
   `;
   
@@ -7272,15 +7544,15 @@ function followResident(residentId) {
   
   followedResident = residentId;
   
-  // Update button to show stop following
+  // Update button to show unfollow
   const panel = document.getElementById('buildingInfoPanel');
   const content = document.getElementById('buildingInfoContent');
   const buttons = content.querySelectorAll('button');
-  // Find the follow button (last button in the content)
-  const followButton = Array.from(buttons).find(btn => btn.textContent.includes('Follow'));
+  // Find the follow button
+  const followButton = Array.from(buttons).find(btn => btn.textContent.includes('Follow') || btn.textContent.includes('Unfollow'));
   if (followButton) {
-    followButton.textContent = `Stop Following`;
-    followButton.className = 'w-full bg-red-600 hover:bg-red-700 text-white text-xs py-2 px-4 rounded transition-colors';
+    followButton.textContent = 'Unfollow';
+    followButton.className = 'bg-red-600 hover:bg-red-700 text-white text-xs py-1.5 px-3 rounded transition-colors flex-shrink-0';
     followButton.onclick = () => stopFollowingResident();
   }
   
@@ -7298,13 +7570,13 @@ function stopFollowingResident() {
   const panel = document.getElementById('buildingInfoPanel');
   const content = document.getElementById('buildingInfoContent');
   const buttons = content.querySelectorAll('button');
-  // Find the follow/stop button (last button in the content, excluding back button)
-  const followButton = Array.from(buttons).find(btn => btn.textContent.includes('Following') || btn.textContent.includes('Follow'));
+  // Find the follow/unfollow button
+  const followButton = Array.from(buttons).find(btn => btn.textContent.includes('Follow') || btn.textContent.includes('Unfollow'));
   if (followButton && currentResidentId) {
     const resident = findResidentById(currentResidentId);
     if (resident) {
-      followButton.textContent = `Follow ${resident.name.split(' ')[0]}`;
-      followButton.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-4 rounded transition-colors';
+      followButton.textContent = 'Follow';
+      followButton.className = 'bg-blue-600 hover:bg-blue-700 text-white text-xs py-1.5 px-3 rounded transition-colors flex-shrink-0';
       followButton.setAttribute('onclick', `followResident(${currentResidentId})`);
     }
   }

@@ -5,14 +5,8 @@
   "name": "Calculator.app",
   "windowWidth": 420,
   "windowHeight": 625,
-<<<<<<< HEAD
-  "createdAt": 1763327738514,
+  "createdAt": 1763783598433,
   "createdBy": "ryo",
-  "updatedAt": 1763327738514,
-=======
-  "createdAt": 1763671940299,
-  "createdBy": "ryo",
-  "updatedAt": 1763671940299,
->>>>>>> 2d35bcc (Update AI SimCity: Enhanced building placement logic to allow pipe placement on water while preventing other structures on water and cliffs. Improved bulldoze functionality to retain pipe status during building removal. Adjusted creation timestamps in JSON files for consistency.)
+  "updatedAt": 1763783598433,
   "featured": true
 }
